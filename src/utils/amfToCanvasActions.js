@@ -2,12 +2,13 @@ import decodeRepostUrl from './decodeRepostUrl';
 import intToRgbaColor from './intToRgbaColor';
 
 // Extract useful actions from AMF action array.
-export default (amfActions, startId = 0) => {
+export default (amfActions, startId = 0, filterUndos = false) => {
   let dimensions = null;
   let repostUrl = null;
   let actions = [];
 
   let currentAction = null;
+  const undoStack = [];
 
   for (let i = 0; i < amfActions.length; i++) {
     const action = amfActions[i];
@@ -38,11 +39,19 @@ export default (amfActions, startId = 0) => {
         break;
       }
       case 'undo': {
-        actions.push({ id: actions.length + startId + 1, action: 'undo' });
+        if (filterUndos) {
+          undoStack.push(actions.pop());
+        } else {
+          actions.push({ id: actions.length + startId + 1, action: 'undo' });
+        }
         break;
       }
       case 'redo': {
-        actions.push({ id: actions.length + startId + 1, action: 'redo' });
+        if (filterUndos) {
+          actions.push(undoStack.pop());
+        } else {
+          actions.push({ id: actions.length + startId + 1, action: 'redo' });
+        }
         break;
       }
       case 'csize': {

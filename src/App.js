@@ -13,6 +13,7 @@ function App() {
   const [canvasWidth, setCanvasWidth] = useState(null);
   const [currentActionIndex, setCurentActionIndex] = useState(null);
   const [playbackSpeed, setPlaybackSpeed] = useState(20); // 300-ish fits drawr player default
+  const [filterUndos, setFilterUndos] = useState(false);
 
   const inputRef = useRef(null);
 
@@ -45,7 +46,7 @@ function App() {
             dimensions,
             actions,
             repostUrl,
-          } = amfToCanvasActions(result, combinedActions.length);
+          } = amfToCanvasActions(result, combinedActions.length, filterUndos);
 
           if (dimensions) canvasSize = dimensions;
           if (repostUrl) fileOrder.unshift(repostUrl); // TODO: Wiggle in repost in right position.
@@ -122,9 +123,19 @@ function App() {
     <div>
       <div className='header'>
         <input multiple ref={inputRef} type='file' name='file' onChange={_onFileUpload}/>
-        <div>
-          <input type='number' onChange={e => setPlaybackSpeed(e.target.value)} value={playbackSpeed} />
-          <div>Canvas Actions: {canvasActions.length}</div>
+         <div>
+          <div>
+            <label>
+              Speed (ms)
+              <input type='number' onChange={e => setPlaybackSpeed(e.target.value)} value={playbackSpeed} />
+            </label>
+          </div>
+          <div>
+            <label>
+              <input type='checkbox' onChange={e => setFilterUndos(!filterUndos)} checked={filterUndos} />
+              Filter out undo actions
+            </label>
+          </div>
           <div>Playback time: {(canvasActions.length * playbackSpeed / 1000).toFixed(2)}s</div>
           {currentActionIndex && <div>Action: {currentActionIndex}/{canvasActions.length}</div>}
         </div>
