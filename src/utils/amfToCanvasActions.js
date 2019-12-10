@@ -13,20 +13,16 @@ export default (amfActions, startId = 0, filterUndos = false) => {
   for (let i = 0; i < amfActions.length; i++) {
     const action = amfActions[i];
 
-    if (action.penType && action.penType !== 'SQUARE' && action.penType !== 'CIRCLE') {
-      console.warn('Unknown pen type', action.penType);
-    }
-
     switch (action.mode) {
       case 'mdown': {
-        // TODO: layers?
         currentAction = {
           id: actions.length + startId + 1,
           action: 'draw',
           brushSize: action.large || 1,
-          brushType: 'round', // TODO: Square brush
+          brushType: 'round', // TODO action.penType: empty (CIRCLE) / SQUARE / CIRCLE
           color: intToRgbaColor(action.color, action.alpha),
           path: [{ x: action.x, y: action.y }],
+          // action.layer needed?
         }
         break;
       }
@@ -55,7 +51,7 @@ export default (amfActions, startId = 0, filterUndos = false) => {
         break;
       }
       case 'csize': {
-        // TODO: What is this?
+        // TODO What does csize do?
         break;
       }
       case 'repost': {

@@ -24,3 +24,21 @@ canvas {
 .actionList > .action {
   padding: 2px 0;
 }
+
+.progressContainer {
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.progressContainer button {
+  flex-shrink: 0;
+}
+
+.progressContainer .replayButton {
+  margin-right: 1rem;
+}
+
+.speedContainer {
+  min-width: 200px;
+}
