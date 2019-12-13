@@ -2,7 +2,7 @@ import decodeRepostUrl from './decodeRepostUrl';
 import intToRgbaColor from './intToRgbaColor';
 
 // Extract useful actions from AMF action array.
-export default (amfActions, startId = 0, filterUndos = false) => {
+export default (amfActions, filterUndos = false) => {
   let dimensions = null;
   let repostUrl = null;
   let actions = [];
@@ -16,7 +16,7 @@ export default (amfActions, startId = 0, filterUndos = false) => {
     switch (action.mode) {
       case 'mdown': {
         currentAction = {
-          id: actions.length + startId + 1,
+          id: actions.length + 1,
           action: 'draw',
           brushSize: action.large || 1,
           brushType: 'round', // TODO action.penType: empty (CIRCLE) / SQUARE / CIRCLE
@@ -38,7 +38,7 @@ export default (amfActions, startId = 0, filterUndos = false) => {
         if (filterUndos) {
           undoStack.push(actions.pop());
         } else {
-          actions.push({ id: actions.length + startId + 1, action: 'undo' });
+          actions.push({ id: actions.length + 1, action: 'undo' });
         }
         break;
       }
@@ -46,7 +46,7 @@ export default (amfActions, startId = 0, filterUndos = false) => {
         if (filterUndos) {
           actions.push(undoStack.pop());
         } else {
-          actions.push({ id: actions.length + startId + 1, action: 'redo' });
+          actions.push({ id: actions.length + 1, action: 'redo' });
         }
         break;
       }

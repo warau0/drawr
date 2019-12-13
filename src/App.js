@@ -5,11 +5,9 @@ import PlayIcon from '@material-ui/icons/PlayCircleOutline';
 import ReplayIcon from '@material-ui/icons/Replay';
 import PauseIcon from '@material-ui/icons/PauseCircleOutline';
 
-import unpackGz from './utils/unpackGz';
-import amfToCanvasActions from './utils/amfToCanvasActions';
-import sortFilenames from './utils/sortFilenames';
-
-import drawAction from './drawing/drawAction';
+import drawAction from './utils/drawAction';
+import WebWorker from './workers/workerSetup';
+import unpackGzWorker from './workers/unpackGz';
 
 import './App.css';
 
@@ -17,14 +15,15 @@ let drawingTimer = null; // Current drawing action. Used to cancel drawing upon 
 let drawingSpeed = null; // Global scoped mirror of playbackSpeed. Needed to refresh speed inside recursive loop.
 let undoStack = [];
 
+const unpacker = new WebWorker(unpackGzWorker);
+
 function App() {
   // Drawing details
-  const [canvasHeight, setCanvasHeight] = useState(null);
-  const [canvasWidth, setCanvasWidth] = useState(null);
-  const [canvasActions, setCanvasActions] = useState([]);
+  const [canvasHeight, setCanvasHeight] = useState(570);
+  const [canvasWidth, setCanvasWidth] = useState(600);
   const [currentActionIndex, setCurentActionIndex] = useState(null);
-  const [undoActionIndexes, setUndoActionIndexes] = useState([]);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(true);
+  const [fileList, setFileList] = useState([]);
 
   // User input
   const [playbackSpeed, setPlaybackSpeed] = useState(100);
@@ -32,63 +31,63 @@ function App() {
 
   const inputRef = useRef(null);
 
+  useState(() => {
+    console.log('register msg event');
+    unpacker.addEventListener('message', e => {
+      console.log('event', e.data);
+    }, false);
+  });
+
   const _onFileUpload = event => {
     clearTimeout(drawingTimer);
     undoStack = [];
 
-    setCanvasHeight(null);
-    setCanvasWidth(null);
-    setCanvasActions([]);
-    setCurentActionIndex(null);
-
-    const promises = [];
-    Array.from(event.target.files)
-      .sort(sortFilenames)
-      .forEach(file => {
-        console.log('Unpacking', `${file.name}...`);
-
-        promises.push(unpackGz(file))
-      });
+    const files = Array.from(event.target.files);
     inputRef.current.value = '';
 
-    Promise.all(promises)
-    .then((results) => {
-      console.log('Analyzing file data...');
+    const newFileList = fileList.concat(files.map(file => ({
+      name: file.name,
+      actions: [],
+      undos: [],
+      repostUrl: null,
+      status: 'loading',
+    })));
+    setFileList(newFileList);
 
-      let combinedActions = [];
-      let canvasSize = {
-        height: 600,
-        width: 570,
-      };
+    files.forEach(file => unpacker.postMessage({ file, filterUndos }));
 
-      results.forEach((result, index) => {
+    /* files.forEach(file => unpackGz(file)
+      .then(result => {
         const {
           dimensions,
           actions,
-          //TODO: repostUrl,
-        } = amfToCanvasActions(result, combinedActions.length, filterUndos);
+          repostUrl,
+        } = amfToCanvasActions(result, filterUndos);
+        const undos = actions.filter(a => a.action === 'undo').map(a => ({ value: a.id }));
 
-        if (dimensions) canvasSize = dimensions;
-        combinedActions = combinedActions.concat(actions);
-      });
+        const fileIndex = newFileList.findIndex(f => f.name === file.name);
+        newFileList[fileIndex] = {
+          ...newFileList[fileIndex],
+          actions,
+          undos,
+          repostUrl,
+          status: actions.length ? 'ready' : 'empty',
+        };
 
-      setCanvasHeight(canvasSize.height);
-      setCanvasWidth(canvasSize.width);
-      setCanvasActions(combinedActions);
-      setUndoActionIndexes(combinedActions.filter(a => a.action === 'undo').map(a => ({ value: a.id })));
-      if (combinedActions.length) {
-        setTimeout(() => {
-          console.log('Begin drawing.');
-          const canvas = document.getElementById('canvas');
-          const ctx = canvas.getContext('2d');
-          setPaused(false);
-          _doAction(canvas, ctx, combinedActions);
-        });
-      } else {
-        console.log('No drawing data.');
-      }
-    })
-    .catch((e) => console.error('Bad input!', e));
+        if (dimensions) {
+          setCanvasHeight(dimensions.height);
+          setCanvasWidth(dimensions.width);
+          console.log(dimensions);
+        }
+        setFileList(newFileList);
+      })
+      .catch((e) => {
+        console.error('Bad input!', e);
+        const fileIndex = newFileList.findIndex(f => f.name === file.name);
+        newFileList[fileIndex] = { ...newFileList[fileIndex], status: 'error' };
+        setFileList(newFileList);
+      })
+    ); */
   };
 
   const _doAction = useCallback((canvas, ctx, actions, index = 0) => {
@@ -140,6 +139,7 @@ function App() {
     }
   }, []);
 
+  /*
   const _replayDrawing = useCallback(() => {
     clearTimeout(drawingTimer);
     undoStack = [];
@@ -171,11 +171,14 @@ function App() {
       setPaused(true);
     }
   }, [_doAction, _replayDrawing, canvasActions, currentActionIndex, paused]);
+  */
 
   // Mirror playbackSpeed to drawingSpeed global.
   useEffect(() => {
     drawingSpeed = playbackSpeed;
   }, [playbackSpeed]);
+
+  const actionsCount = fileList.reduce((a,b) => a + b.actions.length, 0);
 
   return (
     <>
@@ -190,6 +193,12 @@ function App() {
               <input type='checkbox' onChange={e => setFilterUndos(!filterUndos)} checked={filterUndos} />
               Filter out undo actions
             </label>
+          </div>
+
+          <div>
+            {fileList.map((file) => (
+              <div key={file.name}>{file.name}: {file.status} ({file.actions.length})</div>
+            ))}
           </div>
         </div>
 
@@ -208,18 +217,18 @@ function App() {
             </label>
           </div>
 
-          <div>Playback time: {(canvasActions.length * playbackSpeed / 1000).toFixed(2)}s</div>
+          <div>Playback time: {(actionsCount * playbackSpeed / 1000).toFixed(2)}s</div>
         </div>
       </div>
 
       {!!(canvasHeight && canvasWidth) && (
         <>
           <div className='progressContainer' style={{ width: canvasWidth }}>
-            <IconButton color='primary' aria-label='Pause' onClick={_togglePause}>
+            <IconButton color='primary' aria-label='Pause' /* onClick={_togglePause}*/ >
               {paused ? <PlayIcon /> : <PauseIcon />}
             </IconButton>
 
-            <IconButton color='primary' aria-label='Replay' onClick={_replayDrawing} className='replayButton'>
+            <IconButton color='primary' aria-label='Replay' /* onClick={_replayDrawing} */ className='replayButton'>
               <ReplayIcon />
             </IconButton>
 
@@ -229,8 +238,8 @@ function App() {
                 value={currentActionIndex}
                 step={1}
                 min={0}
-                max={canvasActions.length}
-                marks={undoActionIndexes}
+                max={actionsCount}
+                // marks={undoActionIndexes}
               />
             )}
           </div>
