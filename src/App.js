@@ -5,7 +5,7 @@ import PlayIcon from '@material-ui/icons/PlayCircleOutline';
 import ClearIcon from '@material-ui/icons/HighlightOff';
 import PauseIcon from '@material-ui/icons/PauseCircleOutline';
 
-import Label from './atoms/label/label';
+import FileList from './atoms/fileList/fileList';
 
 import useForceUpdate from './utils/useForceUpdate';
 import drawAction from './utils/drawAction';
@@ -24,6 +24,8 @@ let fileList = []; // Updated async from web workers so can't be a state variabl
  * ::::TODO::::
  * 
  * Navigate drawing with slider.
+ * Support square brush.
+ * Find out if csize and layers are important.
  * Add reposts to fileList.
  * Sort files based on repost urls.
  * Generate and download images for every frame.
@@ -238,16 +240,7 @@ function App() {
             </label>
           </div>
 
-          <div>
-            {fileList.map((file) => (
-              <div key={file.name} className='fileLine'>
-                <span className='statusContainer'>
-                  <Label text={file.status} brand={file.status} />
-                </span>
-                {file.name}
-              </div>
-            ))}
-          </div>
+          <FileList files={fileList} />
         </div>
 
         <div className='speedContainer'>

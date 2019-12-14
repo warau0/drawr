@@ -46,13 +46,3 @@ canvas {
 .uploadContainer {
   padding: 0 .5rem;
 }
-
-.fileLine {
-  font-size: .8em;
-  margin: 2px 0;
-  display: flex;
-}
-
-.statusContainer {
-  min-width: 60px;
-}
