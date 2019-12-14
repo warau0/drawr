@@ -22,7 +22,7 @@ self.addEventListener('message', e => {
     });
   })
   .catch(e => {
-    console.error('Bad input!', e);
+    console.error('Bad file!', e);
     self.postMessage({
       name: file.name,
       dimensions: null,

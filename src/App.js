@@ -18,6 +18,16 @@ let globalPlaybackSpeed = null; // Global scoped mirror of playbackSpeed. Needed
 let globalUndoStack = []; // Since undoStack is kept track of recursively inside _doAction, a global is kept if the loop is broken by a pause.
 let fileList = []; // Updated async from web workers so can't be a state variable.
 
+/**
+ * ::::TODO::::
+ * 
+ * Navigate drawing with slider
+ * Add reposts to fileList
+ * Sort files based on repost urls
+ * Generate and download images for every frame
+ * Cheese it!
+ */
+
 function App() {
   // Drawing details
   const [canvasHeight, setCanvasHeight] = useState(570);
@@ -228,7 +238,7 @@ function App() {
                 onChange={() => setFilterUndos(!filterUndos)}
                 checked={filterUndos}
               />
-              Filter out undo actions
+              Filter out undos
             </label>
           </div>
 
@@ -247,7 +257,7 @@ function App() {
         <div className='speedContainer'>
           <div>
             <label>
-              Latency per line (ms)
+              Time (ms) per frame
               <Slider
                 onChange={(e, value) => setPlaybackSpeed(value)}
                 value={playbackSpeed}
@@ -260,6 +270,7 @@ function App() {
           </div>
 
           <div>Playback time: {(canvasActions.length * playbackSpeed / 1000).toFixed(2)}s</div>
+          <div>Frames: {canvasActions.length}</div>
         </div>
       </div>
 

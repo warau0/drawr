@@ -66,7 +66,7 @@ export default (file, amfActions, filterUndos = false) => {
         };
         break;
       }
-      default: console.log('Unknown action', action); break;
+      default: console.warn('Unknown action', action); break;
     }
   }
 
