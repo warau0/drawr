@@ -9,6 +9,7 @@ import Label from './atoms/label/label';
 
 import useForceUpdate from './utils/useForceUpdate';
 import drawAction from './utils/drawAction';
+import drawUntil from './utils/drawUntil';
 import throttle from './utils/throttle';
 import UnpackGzWorker from './workers/unpackGz.worker';
 
@@ -22,10 +23,11 @@ let fileList = []; // Updated async from web workers so can't be a state variabl
 /**
  * ::::TODO::::
  * 
- * Navigate drawing with slider
- * Add reposts to fileList
- * Sort files based on repost urls
- * Generate and download images for every frame
+ * Navigate drawing with slider.
+ * Add reposts to fileList.
+ * Sort files based on repost urls.
+ * Generate and download images for every frame.
+ * Move drawing into a web worker to reduce main thread lag.
  * Cheese it!
  */
 
@@ -91,34 +93,6 @@ function App() {
     });
   };
 
-  const _redrawUntil = (ctx, file, id, undos) => {
-    for (let i = 0; i < fileList.length; i++) {
-      if (fileList[i].name !== file) {
-        // Redraw every action
-        const drawActions = fileList[i].actions.filter(action =>
-          action.action === 'draw' &&
-          undos.findIndex(a => a.id === action.id && a.file === action.file) === -1
-        );
-        for (let k = 0; k < drawActions.length; k++) {
-          drawAction(ctx, drawActions[k]);
-        }
-      } else {
-        // Redraw every action up until the undo action.
-        const drawActions = fileList[i].actions.filter(action =>
-          action.action === 'draw' &&
-          undos.findIndex(a => a.id === action.id && a.file === action.file) === -1 &&
-          action.id < id
-        );
-        for (let k = 0; k < drawActions.length - 1; k++) { // Leaves out last draw action.
-          drawAction(ctx, drawActions[k]);
-        }
-
-        return drawActions[drawActions.length - 1];
-      }
-    }
-    return null;
-  };
-
   const _doAction = useCallback((ctx, actions, index = 0, undoStack = []) => {
     switch (actions[index].action) {
       case 'draw': {
@@ -131,7 +105,7 @@ function App() {
         ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
 
         // Redraw everything up until action to undo. Gets choppy when undo happens thousands of actions in.
-        const undoAction = _redrawUntil(ctx, actions[index].file, actions[index].id, undoStack);
+        const undoAction = drawUntil(ctx, fileList, actions[index].file, actions[index].id, undoStack);
         undoStack.push({ file: undoAction.file, id: undoAction.id });
         break;
       }
