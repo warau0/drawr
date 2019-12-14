@@ -9,6 +9,7 @@ import Label from './atoms/label/label';
 
 import useForceUpdate from './utils/useForceUpdate';
 import drawAction from './utils/drawAction';
+import throttle from './utils/throttle';
 import UnpackGzWorker from './workers/unpackGz.worker';
 
 import './App.css';
@@ -90,6 +91,34 @@ function App() {
     });
   };
 
+  const _redrawUntil = (ctx, file, id, undos) => {
+    for (let i = 0; i < fileList.length; i++) {
+      if (fileList[i].name !== file) {
+        // Redraw every action
+        const drawActions = fileList[i].actions.filter(action =>
+          action.action === 'draw' &&
+          undos.findIndex(a => a.id === action.id && a.file === action.file) === -1
+        );
+        for (let k = 0; k < drawActions.length; k++) {
+          drawAction(ctx, drawActions[k]);
+        }
+      } else {
+        // Redraw every action up until the undo action.
+        const drawActions = fileList[i].actions.filter(action =>
+          action.action === 'draw' &&
+          undos.findIndex(a => a.id === action.id && a.file === action.file) === -1 &&
+          action.id < id
+        );
+        for (let k = 0; k < drawActions.length - 1; k++) { // Leaves out last draw action.
+          drawAction(ctx, drawActions[k]);
+        }
+
+        return drawActions[drawActions.length - 1];
+      }
+    }
+    return null;
+  };
+
   const _doAction = useCallback((ctx, actions, index = 0, undoStack = []) => {
     switch (actions[index].action) {
       case 'draw': {
@@ -102,32 +131,8 @@ function App() {
         ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
 
         // Redraw everything up until action to undo. Gets choppy when undo happens thousands of actions in.
-        for (let i = 0; i < fileList.length; i++) {
-          if (fileList[i].name !== actions[index].file) {
-            // Redraw every action
-            const drawActions = fileList[i].actions.filter(action =>
-              action.action === 'draw' &&
-              undoStack.findIndex(a => a.id === action.id && a.file === action.file) === -1
-            );
-            for (let k = 0; k < drawActions.length; k++) {
-                drawAction(ctx, drawActions[k]);
-            }
-          } else {
-            // Redraw every action up until the undo action.
-            const drawActions = fileList[i].actions.filter(action =>
-              action.action === 'draw' &&
-              undoStack.findIndex(a => a.id === action.id && a.file === action.file) === -1 &&
-              action.id < actions[index].id
-            );
-            for (let k = 0; k < drawActions.length - 1; k++) { // Leaves out last draw action.
-              drawAction(ctx, drawActions[k]);
-            }
-
-            const undoAction = drawActions[drawActions.length - 1];
-            undoStack.push({ file: undoAction.file, id: undoAction.id });
-            break;
-          }
-        }
+        const undoAction = _redrawUntil(ctx, actions[index].file, actions[index].id, undoStack);
+        undoStack.push({ file: undoAction.file, id: undoAction.id });
         break;
       }
 
@@ -210,6 +215,23 @@ function App() {
       }
     }
   }, [_doAction, canvasActions, currentActionIndex, paused]);
+
+  const _navigateTo = useCallback((e, index) => { // WIP
+    clearTimeout(drawingTimer);
+
+    const ctx = canvas.current.getContext('2d');
+    ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
+
+    // TODO Draw up until index
+
+    if (!paused) {
+      _doAction(ctx, canvasActions, index, globalUndoStack);
+    }
+  }, [_doAction, canvasActions, paused]);
+
+  const _throttledNavigateTo = useCallback((...args) => {
+    throttle(() => _navigateTo(...args), 500);
+  }, [_navigateTo]);
 
   // Mirror playbackSpeed to globalPlaybackSpeed.
   useEffect(() => {
@@ -298,7 +320,7 @@ function App() {
 
             {canvasActions.length > 0 && (
               <Slider
-                // onChange={(e, value) => console.log(value)} // TODO: Navigate through replay
+                onChange={_throttledNavigateTo}
                 value={currentActionIndex}
                 step={1}
                 min={0}
