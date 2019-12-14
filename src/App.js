@@ -159,11 +159,14 @@ function App() {
     const combinedUndos = [];
     for (let i = 0; i < canvasActions.length; i++) {
       if (canvasActions[i].action === 'undo') {
-        combinedUndos.push({ value: i });
+        combinedUndos.push({ value: i + 1 });
       }
     }
     return combinedUndos;
   }, [canvasActions]);
+
+  const loadingFilesCount = useMemo(() => fileList.filter(f => f.status === 'loading').length,
+    [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const _clearAll = useCallback(() => {
     clearTimeout(drawingTimer);
@@ -180,6 +183,8 @@ function App() {
   }, [updateFileList]);
 
   const _togglePause = useCallback(() => {
+    if (!canvasActions.length) return;
+
     clearTimeout(drawingTimer);
     setPaused(!paused);
 
@@ -206,12 +211,23 @@ function App() {
       <div className='header'>
         <div className='uploadContainer'>
           <div>
-            <input multiple ref={inputRef} type='file' name='file' onChange={_onFileUpload}/>
+            <input
+              multiple
+              ref={inputRef}
+              type='file'
+              name='file'
+              onChange={_onFileUpload}
+              disabled={!paused}
+            />
           </div>
 
           <div>
             <label>
-              <input type='checkbox' onChange={e => setFilterUndos(!filterUndos)} checked={filterUndos} />
+              <input
+                type='checkbox'
+                onChange={() => setFilterUndos(!filterUndos)}
+                checked={filterUndos}
+              />
               Filter out undo actions
             </label>
           </div>
@@ -250,15 +266,26 @@ function App() {
       {!!(canvasHeight && canvasWidth) && (
         <>
           <div className='progressContainer' style={{ width: canvasWidth }}>
-            <IconButton color='primary' aria-label='Replay' onClick={_clearAll}>
+            <IconButton
+              color='primary'
+              aria-label='Clear'
+              onClick={_clearAll}
+              disabled={canvasActions.length === 0}
+            >
               <ClearIcon />
             </IconButton>
 
-            <IconButton className='playButton' color='primary' aria-label='Pause' onClick={_togglePause} >
+            <IconButton
+              className='playButton'
+              color='primary'
+              aria-label='Pause'
+              onClick={_togglePause}
+              disabled={canvasActions.length === 0 || loadingFilesCount > 0}
+            >
               {paused ? <PlayIcon /> : <PauseIcon />}
             </IconButton>
 
-            {!!currentActionIndex && (
+            {canvasActions.length > 0 && (
               <Slider
                 // onChange={(e, value) => console.log(value)} // TODO: Navigate through replay
                 value={currentActionIndex}
