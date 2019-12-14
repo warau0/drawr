@@ -20,7 +20,8 @@ export default (file, amfActions, filterUndos = false) => {
           id: actions.length + 1,
           action: 'draw',
           brushSize: action.large || 1,
-          brushType: 'round', // TODO action.penType: empty (CIRCLE) / SQUARE / CIRCLE
+          // Canvas lineCap's butt and square look terrible, round is the most accurate by far.
+          brushType: 'round', // action.penType: SQUARE / CIRCLE
           color: intToRgbaColor(action.color, action.alpha),
           path: [{ x: action.x, y: action.y }],
           // action.layer needed?

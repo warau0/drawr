@@ -24,7 +24,6 @@ let fileList = []; // Updated async from web workers so can't be a state variabl
  * ::::TODO::::
  * 
  * Navigate drawing with slider.
- * Support square brush.
  * Find out if csize and layers are important.
  * Add reposts to fileList.
  * Sort files based on repost urls.
