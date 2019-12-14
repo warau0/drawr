@@ -1,96 +1,86 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Slider from '@material-ui/core/Slider';
 import IconButton from '@material-ui/core/IconButton';
 import PlayIcon from '@material-ui/icons/PlayCircleOutline';
-import ReplayIcon from '@material-ui/icons/Replay';
+import ClearIcon from '@material-ui/icons/HighlightOff';
 import PauseIcon from '@material-ui/icons/PauseCircleOutline';
 
+import Label from './atoms/label/label';
+
+import useForceUpdate from './utils/useForceUpdate';
 import drawAction from './utils/drawAction';
-import WebWorker from './workers/workerSetup';
-import unpackGzWorker from './workers/unpackGz';
+import UnpackGzWorker from './workers/unpackGz.worker';
 
 import './App.css';
 
 let drawingTimer = null; // Current drawing action. Used to cancel drawing upon new selection.
-let drawingSpeed = null; // Global scoped mirror of playbackSpeed. Needed to refresh speed inside recursive loop.
-let undoStack = [];
-
-const unpacker = new WebWorker(unpackGzWorker);
+let globalPlaybackSpeed = null; // Global scoped mirror of playbackSpeed. Needed to refresh speed inside recursive loop.
+let globalUndoStack = []; // Since undoStack is kept track of recursively inside _doAction, a global is kept if the loop is broken by a pause.
+let fileList = []; // Updated async from web workers so can't be a state variable.
 
 function App() {
   // Drawing details
   const [canvasHeight, setCanvasHeight] = useState(570);
   const [canvasWidth, setCanvasWidth] = useState(600);
-  const [currentActionIndex, setCurentActionIndex] = useState(null);
+  const [currentActionIndex, setCurentActionIndex] = useState(0);
   const [paused, setPaused] = useState(true);
-  const [fileList, setFileList] = useState([]);
 
   // User input
   const [playbackSpeed, setPlaybackSpeed] = useState(100);
   const [filterUndos, setFilterUndos] = useState(false);
 
   const inputRef = useRef(null);
+  const canvas = useRef(null);
 
-  useState(() => {
-    console.log('register msg event');
-    unpacker.addEventListener('message', e => {
-      console.log('event', e.data);
-    }, false);
-  });
+  const updateFileList = useForceUpdate(); // Proxy state updater for fileList.
 
   const _onFileUpload = event => {
     clearTimeout(drawingTimer);
-    undoStack = [];
-
-    const files = Array.from(event.target.files);
+    
+    const uploadFiles = Array.from(event.target.files);
     inputRef.current.value = '';
 
-    const newFileList = fileList.concat(files.map(file => ({
-      name: file.name,
-      actions: [],
-      undos: [],
-      repostUrl: null,
-      status: 'loading',
-    })));
-    setFileList(newFileList);
+    uploadFiles.forEach(file => {
+      const existingIndex = fileList.findIndex(f => f.name === file.name);
+      const canvasFile = {
+        name: file.name,
+        actions: [],
+        undos: [],
+        repostUrl: null,
+        status: 'loading',
+      };
 
-    files.forEach(file => unpacker.postMessage({ file, filterUndos }));
+      if (existingIndex === -1) {
+        fileList.push(canvasFile);
+      } else {
+        fileList[existingIndex] = canvasFile;
+      }
+    });
+    updateFileList();
 
-    /* files.forEach(file => unpackGz(file)
-      .then(result => {
-        const {
-          dimensions,
-          actions,
-          repostUrl,
-        } = amfToCanvasActions(result, filterUndos);
-        const undos = actions.filter(a => a.action === 'undo').map(a => ({ value: a.id }));
+    uploadFiles.forEach(file => {
+      const unpacker = new UnpackGzWorker();
 
-        const fileIndex = newFileList.findIndex(f => f.name === file.name);
-        newFileList[fileIndex] = {
-          ...newFileList[fileIndex],
-          actions,
-          undos,
-          repostUrl,
-          status: actions.length ? 'ready' : 'empty',
-        };
-
-        if (dimensions) {
-          setCanvasHeight(dimensions.height);
-          setCanvasWidth(dimensions.width);
-          console.log(dimensions);
+      const setFileData = e => {
+        const fileIndex = fileList.findIndex(file => file.name === e.data.name);
+        fileList[fileIndex] = e.data;
+        updateFileList();
+  
+        if (e.data.dimensions) {
+          setCanvasWidth(e.data.dimensions.width);
+          setCanvasHeight(e.data.dimensions.height);
         }
-        setFileList(newFileList);
-      })
-      .catch((e) => {
-        console.error('Bad input!', e);
-        const fileIndex = newFileList.findIndex(f => f.name === file.name);
-        newFileList[fileIndex] = { ...newFileList[fileIndex], status: 'error' };
-        setFileList(newFileList);
-      })
-    ); */
+
+        unpacker.removeEventListener('message', setFileData);
+        unpacker.terminate();
+      };
+
+      unpacker.addEventListener('message', setFileData, false);
+      unpacker.postMessage({ file, filterUndos });
+    });
   };
 
-  const _doAction = useCallback((canvas, ctx, actions, index = 0) => {
+  const _doAction = useCallback((ctx, actions, index = 0, undoStack = []) => {
     switch (actions[index].action) {
       case 'draw': {
         drawAction(ctx, actions[index]);
@@ -99,25 +89,47 @@ function App() {
 
       case 'undo': {
         // Clear the canvas.
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
 
         // Redraw everything up until action to undo. Gets choppy when undo happens thousands of actions in.
-        const drawActions = actions.filter(a => a.action === 'draw' && undoStack.indexOf(a.id) === -1 && a.id <= index);
-        for (let k = 0; k < drawActions.length - 1; k++) { // Leaves out last draw action.
-          drawAction(ctx, drawActions[k]);
-        }
+        for (let i = 0; i < fileList.length; i++) {
+          if (fileList[i].name !== actions[index].file) {
+            // Redraw every action
+            const drawActions = fileList[i].actions.filter(action =>
+              action.action === 'draw' &&
+              undoStack.findIndex(a => a.id === action.id && a.file === action.file) === -1
+            );
+            for (let k = 0; k < drawActions.length; k++) {
+                drawAction(ctx, drawActions[k]);
+            }
+          } else {
+            // Redraw every action up until the undo action.
+            const drawActions = fileList[i].actions.filter(action =>
+              action.action === 'draw' &&
+              undoStack.findIndex(a => a.id === action.id && a.file === action.file) === -1 &&
+              action.id < actions[index].id
+            );
+            for (let k = 0; k < drawActions.length - 1; k++) { // Leaves out last draw action.
+              drawAction(ctx, drawActions[k]);
+            }
 
-        // Push ID into undo stack in order to not undo the same action again unless it's first redone.
-        // Redo action also needs to know the order of undos.
-        undoStack.push(drawActions[drawActions.length - 1].id);
+            const undoAction = drawActions[drawActions.length - 1];
+            undoStack.push({ file: undoAction.file, id: undoAction.id });
+            break;
+          }
+        }
         break;
       }
 
       case 'redo': {
-        const redoActionID = undoStack.pop();
-        if (redoActionID) {
-          const undoneAction = actions.find(a => a.id === redoActionID);
-          drawAction(ctx, undoneAction);
+        const redoAction = undoStack.pop();
+        if (redoAction) {
+          const undoneAction = actions.find(a => a.file === redoAction.file && a.id === redoAction.id);
+          if (undoneAction) {
+            drawAction(ctx, undoneAction);
+          } else {
+            console.warn('Redo action doesn\'t exist.')
+          }
         } else {
           console.warn('Redo action but no correlated undo.');
         }
@@ -130,60 +142,69 @@ function App() {
     setCurentActionIndex(index + 1);
 
     if (index !== actions.length - 1) {
+      globalUndoStack = undoStack;
       drawingTimer = setTimeout(() => {
-        _doAction(canvas, ctx, actions, index + 1);
-      }, drawingSpeed);
+        _doAction(ctx, actions, index + 1, undoStack);
+      }, globalPlaybackSpeed);
     } else {
       setPaused(true);
-      console.log('Done drawing.');
     }
-  }, []);
+  }, [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /*
-  const _replayDrawing = useCallback(() => {
+  const canvasActions = useMemo(() => {
+    return [].concat(...fileList.map(file => file.actions));
+  }, [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const undoActionIndexes = useMemo(() => {
+    const combinedUndos = [];
+    for (let i = 0; i < canvasActions.length; i++) {
+      if (canvasActions[i].action === 'undo') {
+        combinedUndos.push({ value: i });
+      }
+    }
+    return combinedUndos;
+  }, [canvasActions]);
+
+  const _clearAll = useCallback(() => {
     clearTimeout(drawingTimer);
-    undoStack = [];
-    setCurentActionIndex(null);
-    setPaused(false);
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setTimeout(() => {
-      console.log('Begin drawing.');
-      _doAction(canvas, ctx, canvasActions);
-    });
-  }, [_doAction, canvasActions]);
+    globalUndoStack = [];
+    fileList = [];
+    updateFileList();
+    setPaused(true);
+    setCurentActionIndex(0);
+    setCanvasHeight(570);
+    setCanvasWidth(600);
+
+    const ctx = canvas.current.getContext('2d');
+    ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
+  }, [updateFileList]);
 
   const _togglePause = useCallback(() => {
+    clearTimeout(drawingTimer);
+    setPaused(!paused);
+
     if (paused) {
+      const ctx = canvas.current.getContext('2d');
+
       if (currentActionIndex === canvasActions.length) {
-        _replayDrawing();
+        setCurentActionIndex(0);
+        ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
+        _doAction(ctx, canvasActions);
       } else {
-        console.log('Unpaused drawing.');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        setPaused(false);
-        _doAction(canvas, ctx, canvasActions, currentActionIndex);
+        _doAction(ctx, canvasActions, currentActionIndex, globalUndoStack);
       }
-    } else {
-      console.log('Paused drawing.');
-      clearTimeout(drawingTimer);
-      setPaused(true);
     }
-  }, [_doAction, _replayDrawing, canvasActions, currentActionIndex, paused]);
-  */
+  }, [_doAction, canvasActions, currentActionIndex, paused]);
 
-  // Mirror playbackSpeed to drawingSpeed global.
+  // Mirror playbackSpeed to globalPlaybackSpeed.
   useEffect(() => {
-    drawingSpeed = playbackSpeed;
+    globalPlaybackSpeed = playbackSpeed;
   }, [playbackSpeed]);
-
-  const actionsCount = fileList.reduce((a,b) => a + b.actions.length, 0);
 
   return (
     <>
       <div className='header'>
-        <div>
+        <div className='uploadContainer'>
           <div>
             <input multiple ref={inputRef} type='file' name='file' onChange={_onFileUpload}/>
           </div>
@@ -197,7 +218,12 @@ function App() {
 
           <div>
             {fileList.map((file) => (
-              <div key={file.name}>{file.name}: {file.status} ({file.actions.length})</div>
+              <div key={file.name} className='fileLine'>
+                <span className='statusContainer'>
+                  <Label text={file.status} brand={file.status} />
+                </span>
+                {file.name}
+              </div>
             ))}
           </div>
         </div>
@@ -217,34 +243,34 @@ function App() {
             </label>
           </div>
 
-          <div>Playback time: {(actionsCount * playbackSpeed / 1000).toFixed(2)}s</div>
+          <div>Playback time: {(canvasActions.length * playbackSpeed / 1000).toFixed(2)}s</div>
         </div>
       </div>
 
       {!!(canvasHeight && canvasWidth) && (
         <>
           <div className='progressContainer' style={{ width: canvasWidth }}>
-            <IconButton color='primary' aria-label='Pause' /* onClick={_togglePause}*/ >
+            <IconButton color='primary' aria-label='Replay' onClick={_clearAll}>
+              <ClearIcon />
+            </IconButton>
+
+            <IconButton className='playButton' color='primary' aria-label='Pause' onClick={_togglePause} >
               {paused ? <PlayIcon /> : <PauseIcon />}
             </IconButton>
 
-            <IconButton color='primary' aria-label='Replay' /* onClick={_replayDrawing} */ className='replayButton'>
-              <ReplayIcon />
-            </IconButton>
-
-            {currentActionIndex && (
+            {!!currentActionIndex && (
               <Slider
                 // onChange={(e, value) => console.log(value)} // TODO: Navigate through replay
                 value={currentActionIndex}
                 step={1}
                 min={0}
-                max={actionsCount}
-                // marks={undoActionIndexes}
+                max={canvasActions.length}
+                marks={undoActionIndexes}
               />
             )}
           </div>
           <div className='canvasContainer' style={{ height: canvasHeight }}>
-            <canvas id='canvas' height={canvasHeight} width={canvasWidth} />
+            <canvas ref={canvas} height={canvasHeight} width={canvasWidth} />
           </div>
         </>
       )}

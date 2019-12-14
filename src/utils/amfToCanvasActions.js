@@ -2,7 +2,7 @@ import decodeRepostUrl from './decodeRepostUrl';
 import intToRgbaColor from './intToRgbaColor';
 
 // Extract useful actions from AMF action array.
-export default (amfActions, filterUndos = false) => {
+export default (file, amfActions, filterUndos = false) => {
   let dimensions = null;
   let repostUrl = null;
   let actions = [];
@@ -16,6 +16,7 @@ export default (amfActions, filterUndos = false) => {
     switch (action.mode) {
       case 'mdown': {
         currentAction = {
+          file,
           id: actions.length + 1,
           action: 'draw',
           brushSize: action.large || 1,
@@ -38,7 +39,7 @@ export default (amfActions, filterUndos = false) => {
         if (filterUndos) {
           undoStack.push(actions.pop());
         } else {
-          actions.push({ id: actions.length + 1, action: 'undo' });
+          actions.push({ file, id: actions.length + 1, action: 'undo' });
         }
         break;
       }
@@ -46,7 +47,7 @@ export default (amfActions, filterUndos = false) => {
         if (filterUndos) {
           actions.push(undoStack.pop());
         } else {
-          actions.push({ id: actions.length + 1, action: 'redo' });
+          actions.push({ file, id: actions.length + 1, action: 'redo' });
         }
         break;
       }
