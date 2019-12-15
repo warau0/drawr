@@ -11,7 +11,7 @@ self.addEventListener('message', e => {
       dimensions,
       actions,
       repostUrl,
-    } = amfToCanvasActions(file.name, result, filterUndos);
+    } = amfToCanvasActions(result, filterUndos);
 
     self.postMessage({
       name: file.name,

@@ -2,7 +2,7 @@ import decodeRepostUrl from './decodeRepostUrl';
 import intToRgbaColor from './intToRgbaColor';
 
 // Extract useful actions from AMF action array.
-export default (file, amfActions, filterUndos = false) => {
+export default (amfActions, filterUndos = false) => {
   let dimensions = null;
   let repostUrl = null;
   let actions = [];
@@ -16,15 +16,13 @@ export default (file, amfActions, filterUndos = false) => {
     switch (action.mode) {
       case 'mdown': {
         currentAction = {
-          file,
-          id: actions.length + 1,
           action: 'draw',
           brushSize: action.large || 1,
           // Canvas lineCap's butt and square look terrible, round is the most accurate by far.
           brushType: 'round', // action.penType: SQUARE / CIRCLE
           color: intToRgbaColor(action.color, action.alpha),
           path: [{ x: action.x, y: action.y }],
-          // action.layer needed?
+          // TODO action.layer needed?
         }
         break;
       }
@@ -40,7 +38,7 @@ export default (file, amfActions, filterUndos = false) => {
         if (filterUndos) {
           undoStack.push(actions.pop());
         } else {
-          actions.push({ file, id: actions.length + 1, action: 'undo' });
+          actions.push({ action: 'undo' });
         }
         break;
       }
@@ -48,7 +46,7 @@ export default (file, amfActions, filterUndos = false) => {
         if (filterUndos) {
           actions.push(undoStack.pop());
         } else {
-          actions.push({ file, id: actions.length + 1, action: 'redo' });
+          actions.push({ action: 'redo' });
         }
         break;
       }

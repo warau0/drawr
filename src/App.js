@@ -15,15 +15,16 @@ import UnpackGzWorker from './workers/unpackGz.worker';
 
 import './App.css';
 
+const NAVIGATION_DELAY = 100;
+
 let drawingTimer = null; // Current drawing action. Used to cancel drawing upon new selection.
 let globalPlaybackSpeed = null; // Global scoped mirror of playbackSpeed. Needed to refresh speed inside recursive loop.
-let globalUndoStack = []; // Since undoStack is kept track of recursively inside _doAction, a global is kept if the loop is broken by a pause.
+let undoStack = []; // No state needed, just to keep track of what actions have been undone.
 let fileList = []; // Updated async from web workers so can't be a state variable.
 
 /**
  * ::::TODO::::
  * 
- * Navigate drawing with slider.
  * Find out if csize and layers are important.
  * Add reposts to fileList.
  * Sort files based on repost urls.
@@ -47,6 +48,30 @@ function App() {
   const canvas = useRef(null);
 
   const updateFileList = useForceUpdate(); // Proxy state updater for fileList.
+
+  const canvasActions = useMemo(() => {
+    return [].concat(...fileList.map(file => file.actions));
+  }, [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const undoActionIndexes = useMemo(() => {
+    const combinedUndos = [];
+    for (let i = 0; i < canvasActions.length; i++) {
+      if (canvasActions[i].action === 'undo') {
+        combinedUndos.push({ value: i + 1 });
+      }
+    }
+    return combinedUndos;
+  }, [canvasActions]);
+
+  const loadingFilesCount = useMemo(() => fileList.filter(f => f.status === 'loading').length,
+    [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mirror playbackSpeed to globalPlaybackSpeed.
+  useEffect(() => {
+    globalPlaybackSpeed = playbackSpeed;
+  }, [playbackSpeed]);
+
+  // ------------------------ Functions ------------------------
 
   const _onFileUpload = event => {
     clearTimeout(drawingTimer);
@@ -94,7 +119,7 @@ function App() {
     });
   };
 
-  const _doAction = useCallback((ctx, actions, index = 0, undoStack = []) => {
+  const _doAction = useCallback((ctx, actions, index = 0) => {
     switch (actions[index].action) {
       case 'draw': {
         drawAction(ctx, actions[index]);
@@ -102,19 +127,23 @@ function App() {
       }
 
       case 'undo': {
-        // Clear the canvas.
         ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
-
-        // Redraw everything up until action to undo. Gets choppy when undo happens thousands of actions in.
-        const undoAction = drawUntil(ctx, fileList, actions[index].file, actions[index].id, undoStack);
-        undoStack.push({ file: undoAction.file, id: undoAction.id });
+        drawUntil(ctx, actions, index, undoStack); // Scales badly, lags when going fast.
+        let lastDrawingIndex = null;
+        for (let i = index; i >= 0; i--) {
+          if (actions[i].action === 'draw' && undoStack.indexOf(i) === -1) {
+            lastDrawingIndex = i;
+            break;
+          }
+        }
+        undoStack.push(lastDrawingIndex);
         break;
       }
 
       case 'redo': {
-        const redoAction = undoStack.pop();
-        if (redoAction) {
-          const undoneAction = actions.find(a => a.file === redoAction.file && a.id === redoAction.id);
+        const redoActionIndex = undoStack.pop();
+        if (redoActionIndex >= 0) {
+          const undoneAction = actions[redoActionIndex];
           if (undoneAction) {
             drawAction(ctx, undoneAction);
           } else {
@@ -132,35 +161,17 @@ function App() {
     setCurentActionIndex(index + 1);
 
     if (index !== actions.length - 1) {
-      globalUndoStack = undoStack;
       drawingTimer = setTimeout(() => {
-        _doAction(ctx, actions, index + 1, undoStack);
+        _doAction(ctx, actions, index + 1);
       }, globalPlaybackSpeed);
     } else {
       setPaused(true);
     }
-  }, [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const canvasActions = useMemo(() => {
-    return [].concat(...fileList.map(file => file.actions));
-  }, [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const undoActionIndexes = useMemo(() => {
-    const combinedUndos = [];
-    for (let i = 0; i < canvasActions.length; i++) {
-      if (canvasActions[i].action === 'undo') {
-        combinedUndos.push({ value: i + 1 });
-      }
-    }
-    return combinedUndos;
-  }, [canvasActions]);
-
-  const loadingFilesCount = useMemo(() => fileList.filter(f => f.status === 'loading').length,
-    [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const _clearAll = useCallback(() => {
     clearTimeout(drawingTimer);
-    globalUndoStack = [];
+    undoStack = [];
     fileList = [];
     updateFileList();
     setPaused(true);
@@ -182,36 +193,48 @@ function App() {
       const ctx = canvas.current.getContext('2d');
 
       if (currentActionIndex === canvasActions.length) {
-        setCurentActionIndex(0);
+        undoStack = [];
         ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
         _doAction(ctx, canvasActions);
       } else {
-        _doAction(ctx, canvasActions, currentActionIndex, globalUndoStack);
+        _doAction(ctx, canvasActions, currentActionIndex);
       }
     }
   }, [_doAction, canvasActions, currentActionIndex, paused]);
 
-  const _navigateTo = useCallback((e, index) => { // WIP
+  const _navigateTo = useCallback((e, index) => {
     clearTimeout(drawingTimer);
-
     const ctx = canvas.current.getContext('2d');
     ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
 
-    // TODO Draw up until index
+    // Rebuild undo stack.
+    undoStack = [];
+    for (let i = 0; i < index; i++) {
+      if (canvasActions[i].action === 'undo') {
+        // Find the last drawing action before this undo.
+        for (let j = i; j >= 0; j--) {
+          if (canvasActions[j].action === 'draw' && undoStack.indexOf(i) === -1) {
+            undoStack.push(j);
+            break;
+          }
+        }
+      } else if (canvasActions[i].action === 'redo') {
+        undoStack.pop();
+      }
+    }
+
+    drawUntil(ctx, canvasActions, index, undoStack);
 
     if (!paused) {
-      _doAction(ctx, canvasActions, index, globalUndoStack);
+      _doAction(ctx, canvasActions, index);
+    } else {
+      setCurentActionIndex(index);
     }
   }, [_doAction, canvasActions, paused]);
 
   const _throttledNavigateTo = useCallback((...args) => {
-    throttle(() => _navigateTo(...args), 500);
+    throttle(() => _navigateTo(...args), NAVIGATION_DELAY);
   }, [_navigateTo]);
-
-  // Mirror playbackSpeed to globalPlaybackSpeed.
-  useEffect(() => {
-    globalPlaybackSpeed = playbackSpeed;
-  }, [playbackSpeed]);
 
   return (
     <>
@@ -290,7 +313,7 @@ function App() {
                 value={currentActionIndex}
                 step={1}
                 min={0}
-                max={canvasActions.length}
+                max={canvasActions.length - 1}
                 marks={undoActionIndexes}
               />
             )}
