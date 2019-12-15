@@ -11,6 +11,7 @@ import useForceUpdate from './utils/useForceUpdate';
 import drawAction from './utils/drawAction';
 import drawUntil from './utils/drawUntil';
 import throttle from './utils/throttle';
+import sortFiles from './utils/sortFiles';
 import UnpackGzWorker from './workers/unpackGz.worker';
 
 import './App.css';
@@ -25,7 +26,7 @@ let fileList = []; // Updated async from web workers so can't be a state variabl
 /**
  * ::::TODO::::
  * 
- * Sort files based on repost urls.
+ * Bug: Manual navigation don't properly apply undos & redos.
  * Move drawing into a web worker to reduce main thread lag.
  * Generate and download images for every frame.
  * Find out if csize and layers are important.
@@ -98,6 +99,7 @@ function App() {
         fileList[existingIndex] = canvasFile;
       }
     });
+    fileList = sortFiles(fileList);
     updateFileList();
 
     uploadFiles.forEach(file => {
@@ -106,9 +108,10 @@ function App() {
       const setFileData = e => {
         const fileIndex = fileList.findIndex(file => file.name === e.data.name);
         fileList[fileIndex] = e.data;
-        
-        if (e.data.repostFile) {
-          fileList.unshift({
+
+        if (e.data.repostFile && fileList.findIndex(f => f.name === e.data.repostFile) === -1) {
+          // Insert repost before the file relying on the repost.
+          fileList.splice(fileIndex, 0, {
             name: e.data.repostFile,
             actions: [],
             undos: [],
@@ -117,8 +120,6 @@ function App() {
             status: 'missing',
           });
         }
-
-        // TODO Sort file list based on name and reposts.
 
         updateFileList();
   
@@ -321,7 +322,7 @@ function App() {
               color='primary'
               aria-label='Clear'
               onClick={_clearAll}
-              disabled={canvasActions.length === 0}
+              disabled={fileList.length === 0 || loadingFilesCount > 0}
             >
               <ClearIcon />
             </IconButton>
