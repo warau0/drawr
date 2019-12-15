@@ -5,6 +5,7 @@ import intToRgbaColor from './intToRgbaColor';
 export default (amfActions, filterUndos = false) => {
   let dimensions = null;
   let repostUrl = null;
+  let repostFile = null;
   let actions = [];
 
   let currentAction = null;
@@ -56,6 +57,8 @@ export default (amfActions, filterUndos = false) => {
       }
       case 'repost': {
         repostUrl = decodeRepostUrl(action.color);
+        const repostSplit = repostUrl.split('/');
+        repostFile = repostSplit[repostSplit.length - 1].replace('.png', '.gz');
         break;
       }
       case 'start': {
@@ -73,5 +76,6 @@ export default (amfActions, filterUndos = false) => {
     dimensions,
     actions,
     repostUrl,
+    repostFile,
   };
 }

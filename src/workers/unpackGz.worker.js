@@ -11,6 +11,7 @@ self.addEventListener('message', e => {
       dimensions,
       actions,
       repostUrl,
+      repostFile,
     } = amfToCanvasActions(result, filterUndos);
 
     self.postMessage({
@@ -18,6 +19,7 @@ self.addEventListener('message', e => {
       dimensions,
       actions,
       repostUrl,
+      repostFile,
       status: actions.length ? 'ready' : 'empty',
     });
   })
@@ -28,6 +30,7 @@ self.addEventListener('message', e => {
       dimensions: null,
       actions: [],
       repostUrl: null,
+      repostFile: null,
       status: 'error',
     });
   });

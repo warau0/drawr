@@ -25,11 +25,10 @@ let fileList = []; // Updated async from web workers so can't be a state variabl
 /**
  * ::::TODO::::
  * 
- * Find out if csize and layers are important.
- * Add reposts to fileList.
  * Sort files based on repost urls.
- * Generate and download images for every frame.
  * Move drawing into a web worker to reduce main thread lag.
+ * Generate and download images for every frame.
+ * Find out if csize and layers are important.
  * Cheese it!
  */
 
@@ -73,6 +72,9 @@ function App() {
 
   // ------------------------ Functions ------------------------
 
+  /**
+   * Unpack and convert .gz files into canvas actions.
+   */
   const _onFileUpload = event => {
     clearTimeout(drawingTimer);
     
@@ -86,6 +88,7 @@ function App() {
         actions: [],
         undos: [],
         repostUrl: null,
+        repostFile: null,
         status: 'loading',
       };
 
@@ -103,6 +106,20 @@ function App() {
       const setFileData = e => {
         const fileIndex = fileList.findIndex(file => file.name === e.data.name);
         fileList[fileIndex] = e.data;
+        
+        if (e.data.repostFile) {
+          fileList.unshift({
+            name: e.data.repostFile,
+            actions: [],
+            undos: [],
+            repostUrl: null,
+            repostFile: null,
+            status: 'missing',
+          });
+        }
+
+        // TODO Sort file list based on name and reposts.
+
         updateFileList();
   
         if (e.data.dimensions) {
@@ -119,6 +136,9 @@ function App() {
     });
   };
 
+  /**
+   * Act upon an action by updating the canvas.
+   */
   const _doAction = useCallback((ctx, actions, index = 0) => {
     switch (actions[index].action) {
       case 'draw': {
@@ -169,6 +189,9 @@ function App() {
     }
   }, []);
 
+  /**
+   * Clear the canvas and remove all uploaded files. 
+   */
   const _clearAll = useCallback(() => {
     clearTimeout(drawingTimer);
     undoStack = [];
@@ -183,6 +206,9 @@ function App() {
     ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
   }, [updateFileList]);
 
+  /**
+   * Pause or unpause the drawing playback.
+   */
   const _togglePause = useCallback(() => {
     if (!canvasActions.length) return;
 
@@ -202,6 +228,9 @@ function App() {
     }
   }, [_doAction, canvasActions, currentActionIndex, paused]);
 
+  /*
+   * Jump to a point in the drawing timeline.
+   */
   const _navigateTo = useCallback((e, index) => {
     clearTimeout(drawingTimer);
     const ctx = canvas.current.getContext('2d');
