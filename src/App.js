@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { saveAs } from 'file-saver';
 import Slider from '@material-ui/core/Slider';
 import IconButton from '@material-ui/core/IconButton';
+import Button from '@material-ui/core/Button';
 import PlayIcon from '@material-ui/icons/PlayCircleOutline';
 import ClearIcon from '@material-ui/icons/HighlightOff';
 import PauseIcon from '@material-ui/icons/PauseCircleOutline';
@@ -13,6 +15,7 @@ import drawUntil from './utils/drawUntil';
 import throttle from './utils/throttle';
 import sortFiles from './utils/sortFiles';
 import UnpackGzWorker from './workers/unpackGz.worker';
+import ZipImagesWorker from './workers/zipImages.worker';
 
 import './App.css';
 
@@ -22,13 +25,15 @@ let drawingTimer = null; // Current drawing action. Used to cancel drawing upon 
 let globalPlaybackSpeed = null; // Global scoped mirror of playbackSpeed. Needed to refresh speed inside recursive loop.
 let undoStack = []; // No state needed, just to keep track of what actions have been undone.
 let fileList = []; // Updated async from web workers so can't be a state variable.
+let imgStack = [];
 
 /**
  * ::::TODO::::
  * 
  * Bug: Manual navigation don't properly apply undos & redos.
+ * Move image data from imgStack into individual actions.
+ * Use imgStack for undos & redos if it's available.
  * Move drawing into a web worker to reduce main thread lag.
- * Generate and download images for every frame.
  * Find out if csize and layers are important.
  * Cheese it!
  */
@@ -39,15 +44,15 @@ function App() {
   const [canvasWidth, setCanvasWidth] = useState(600);
   const [currentActionIndex, setCurentActionIndex] = useState(0);
   const [paused, setPaused] = useState(true);
+  const [zipLoading, setZipLoading] = useState(false);
 
   // User input
   const [playbackSpeed, setPlaybackSpeed] = useState(100);
   const [filterUndos, setFilterUndos] = useState(false);
-  const [downloadImages, setDownloadImages] = useState(false);
+  const [generateFrames, setGenerateFrames] = useState(false);
 
   const inputRef = useRef(null);
   const canvas = useRef(null);
-  const downloadAnchor = useRef(null);
 
   const updateFileList = useForceUpdate(); // Proxy state updater for fileList.
 
@@ -182,15 +187,9 @@ function App() {
       default: console.warn('Unknown action', actions[index].action); break;
     }
 
-    if (downloadImages) { // WIP, loses images at high speeds
-      const anchor = document.createElement('a');
-      anchor.setAttribute('href', 'data:image/' + canvas.current.toDataURL());
-      anchor.setAttribute('download', `img-${index + 1}.png`);
-      downloadAnchor.current.appendChild(anchor);
-      anchor.click();
-      setTimeout(() => {
-        downloadAnchor.current.removeChild(anchor);  
-      }, 500);
+    if (generateFrames) {
+      imgStack[index] = canvas.current.toDataURL()
+        .split('data:image/png;base64,')[1];
     }
 
     setCurentActionIndex(index + 1);
@@ -202,7 +201,7 @@ function App() {
     } else {
       setPaused(true);
     }
-  }, [downloadImages]);
+  }, [generateFrames]);
 
   /**
    * Clear the canvas and remove all uploaded files. 
@@ -210,6 +209,7 @@ function App() {
   const _clearAll = useCallback(() => {
     clearTimeout(drawingTimer);
     undoStack = [];
+    imgStack = [];
     fileList = [];
     updateFileList();
     setPaused(true);
@@ -237,6 +237,7 @@ function App() {
       const startingIndex = currentActionIndex === canvasActions.length ? 0 : currentActionIndex;
       if (!startingIndex) {
         undoStack = [];
+        imgStack = [];
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.current.width, canvas.current.height);
       }
@@ -283,6 +284,24 @@ function App() {
     throttle(() => _navigateTo(...args), NAVIGATION_DELAY);
   }, [_navigateTo]);
 
+  const _downloadImgStack = () => {
+    const packer = new ZipImagesWorker();
+    setZipLoading(true);
+
+    const downloadFile = e => {
+      if (e.data) {
+        saveAs(e.data, `${fileList[fileList.length - 1].name.split('.')[0]}.zip`);
+      }
+      
+      setZipLoading(false);
+      packer.removeEventListener('message', downloadFile);
+      packer.terminate();
+    };
+    
+    packer.addEventListener('message', downloadFile, false);
+    packer.postMessage(imgStack);
+  }
+
   return (
     <>
       <div className='header'>
@@ -314,11 +333,11 @@ function App() {
             <label>
               <input
                 type='checkbox'
-                onChange={() => setDownloadImages(!downloadImages)}
-                checked={downloadImages}
+                onChange={() => setGenerateFrames(!generateFrames)}
+                checked={generateFrames}
                 disabled={!paused}
               />
-              Download frames
+              Generate image frames
             </label>
           </div>
 
@@ -342,6 +361,14 @@ function App() {
 
           <div>Playback time: {(canvasActions.length * playbackSpeed / 1000).toFixed(2)}s</div>
           <div>Frames: {canvasActions.length}</div>
+          {generateFrames && <Button
+            color='primary'
+            variant='contained'
+            onClick={_downloadImgStack}
+            disabled={imgStack.length === 0 || imgStack.length !== canvasActions.length}
+          >
+            {zipLoading ? 'Generating zip...' : 'Download frames'}
+          </Button>}
         </div>
       </div>
 
@@ -378,10 +405,10 @@ function App() {
               />
             )}
           </div>
+
           <div className='canvasContainer' style={{ height: canvasHeight }}>
             <canvas ref={canvas} height={canvasHeight} width={canvasWidth} />
           </div>
-          <div ref={downloadAnchor} style={{ display: 'none' }} />
         </>
       )}
     </>
