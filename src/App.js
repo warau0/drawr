@@ -43,9 +43,11 @@ function App() {
   // User input
   const [playbackSpeed, setPlaybackSpeed] = useState(100);
   const [filterUndos, setFilterUndos] = useState(false);
+  const [downloadImages, setDownloadImages] = useState(false);
 
   const inputRef = useRef(null);
   const canvas = useRef(null);
+  const downloadAnchor = useRef(null);
 
   const updateFileList = useForceUpdate(); // Proxy state updater for fileList.
 
@@ -148,7 +150,8 @@ function App() {
       }
 
       case 'undo': {
-        ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.current.width, canvas.current.height);
         drawUntil(ctx, actions, index, undoStack); // Scales badly, lags when going fast.
         let lastDrawingIndex = null;
         for (let i = index; i >= 0; i--) {
@@ -179,6 +182,17 @@ function App() {
       default: console.warn('Unknown action', actions[index].action); break;
     }
 
+    if (downloadImages) { // WIP, loses images at high speeds
+      const anchor = document.createElement('a');
+      anchor.setAttribute('href', 'data:image/' + canvas.current.toDataURL());
+      anchor.setAttribute('download', `img-${index + 1}.png`);
+      downloadAnchor.current.appendChild(anchor);
+      anchor.click();
+      setTimeout(() => {
+        downloadAnchor.current.removeChild(anchor);  
+      }, 500);
+    }
+
     setCurentActionIndex(index + 1);
 
     if (index !== actions.length - 1) {
@@ -188,7 +202,7 @@ function App() {
     } else {
       setPaused(true);
     }
-  }, []);
+  }, [downloadImages]);
 
   /**
    * Clear the canvas and remove all uploaded files. 
@@ -204,7 +218,8 @@ function App() {
     setCanvasWidth(600);
 
     const ctx = canvas.current.getContext('2d');
-    ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.current.width, canvas.current.height);
   }, [updateFileList]);
 
   /**
@@ -219,13 +234,14 @@ function App() {
     if (paused) {
       const ctx = canvas.current.getContext('2d');
 
-      if (currentActionIndex === canvasActions.length) {
+      const startingIndex = currentActionIndex === canvasActions.length ? 0 : currentActionIndex;
+      if (!startingIndex) {
         undoStack = [];
-        ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
-        _doAction(ctx, canvasActions);
-      } else {
-        _doAction(ctx, canvasActions, currentActionIndex);
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.current.width, canvas.current.height);
       }
+
+      _doAction(ctx, canvasActions, startingIndex);
     }
   }, [_doAction, canvasActions, currentActionIndex, paused]);
 
@@ -235,7 +251,8 @@ function App() {
   const _navigateTo = useCallback((e, index) => {
     clearTimeout(drawingTimer);
     const ctx = canvas.current.getContext('2d');
-    ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.current.width, canvas.current.height);
 
     // Rebuild undo stack.
     undoStack = [];
@@ -287,8 +304,21 @@ function App() {
                 type='checkbox'
                 onChange={() => setFilterUndos(!filterUndos)}
                 checked={filterUndos}
+                disabled={!paused}
               />
               Filter out undos
+            </label>
+          </div>
+
+          <div>
+            <label>
+              <input
+                type='checkbox'
+                onChange={() => setDownloadImages(!downloadImages)}
+                checked={downloadImages}
+                disabled={!paused}
+              />
+              Download frames
             </label>
           </div>
 
@@ -351,6 +381,7 @@ function App() {
           <div className='canvasContainer' style={{ height: canvasHeight }}>
             <canvas ref={canvas} height={canvasHeight} width={canvasWidth} />
           </div>
+          <div ref={downloadAnchor} style={{ display: 'none' }} />
         </>
       )}
     </>

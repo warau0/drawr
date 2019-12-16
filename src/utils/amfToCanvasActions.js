@@ -23,7 +23,6 @@ export default (amfActions, filterUndos = false) => {
           brushType: 'round', // action.penType: SQUARE / CIRCLE
           color: intToRgbaColor(action.color, action.alpha),
           path: [{ x: action.x, y: action.y }],
-          // TODO action.layer needed?
         }
         break;
       }
@@ -52,7 +51,6 @@ export default (amfActions, filterUndos = false) => {
         break;
       }
       case 'csize': {
-        // TODO What does csize do?
         break;
       }
       case 'repost': {
