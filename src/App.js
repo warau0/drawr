@@ -14,8 +14,10 @@ import drawAction from './utils/drawAction';
 import drawUntil from './utils/drawUntil';
 import throttle from './utils/throttle';
 import sortFiles from './utils/sortFiles';
+
 import UnpackGzWorker from './workers/unpackGz.worker';
 import ZipImagesWorker from './workers/zipImages.worker';
+import OffscreenCanvasWorker from './workers/offscreenCanvas.worker';
 
 import './App.css';
 
@@ -25,15 +27,14 @@ let drawingTimer = null; // Current drawing action. Used to cancel drawing upon 
 let globalPlaybackSpeed = null; // Global scoped mirror of playbackSpeed. Needed to refresh speed inside recursive loop.
 let undoStack = []; // No state needed, just to keep track of what actions have been undone.
 let fileList = []; // Updated async from web workers so can't be a state variable.
-let imgStack = [];
 
 /**
  * ::::TODO::::
  * 
  * Bug: Manual navigation don't properly apply undos & redos.
- * Move image data from imgStack into individual actions.
- * Use imgStack for undos & redos if it's available.
+ * Use frames for doAction if it's available.
  * Move drawing into a web worker to reduce main thread lag.
+ * Kill web workers when clearAll is fired.
  * Find out if csize and layers are important.
  * Cheese it!
  */
@@ -70,9 +71,6 @@ function App() {
     return combinedUndos;
   }, [canvasActions]);
 
-  const loadingFilesCount = useMemo(() => fileList.filter(f => f.status === 'loading').length,
-    [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Mirror playbackSpeed to globalPlaybackSpeed.
   useEffect(() => {
     globalPlaybackSpeed = playbackSpeed;
@@ -88,16 +86,16 @@ function App() {
     
     const uploadFiles = Array.from(event.target.files);
     inputRef.current.value = '';
+    let canvasDimensions = { height: canvasHeight, width: canvasWidth };
 
     uploadFiles.forEach(file => {
       const existingIndex = fileList.findIndex(f => f.name === file.name);
       const canvasFile = {
         name: file.name,
         actions: [],
-        undos: [],
         repostUrl: null,
         repostFile: null,
-        status: 'loading',
+        status: 'unpacking',
       };
 
       if (existingIndex === -1) {
@@ -109,7 +107,7 @@ function App() {
     fileList = sortFiles(fileList);
     updateFileList();
 
-    uploadFiles.forEach(file => {
+    const promises = uploadFiles.map(file => new Promise(resolve => {
       const unpacker = new UnpackGzWorker();
 
       const setFileData = e => {
@@ -121,7 +119,6 @@ function App() {
           fileList.splice(fileIndex, 0, {
             name: e.data.repostFile,
             actions: [],
-            undos: [],
             repostUrl: null,
             repostFile: null,
             status: 'missing',
@@ -129,18 +126,56 @@ function App() {
         }
 
         updateFileList();
-  
+
         if (e.data.dimensions) {
           setCanvasWidth(e.data.dimensions.width);
           setCanvasHeight(e.data.dimensions.height);
+          canvasDimensions = e.data.dimensions;
         }
 
         unpacker.removeEventListener('message', setFileData);
         unpacker.terminate();
+        resolve();
       };
 
       unpacker.addEventListener('message', setFileData, false);
-      unpacker.postMessage({ file, filterUndos });
+      unpacker.postMessage({ file, filterUndos, generateFrames });
+    }));
+
+    Promise.all(promises).then(() => {
+      if (generateFrames) {
+        fileList.forEach((file, i) => {
+          if (file.status === 'drawing') {
+            const drawer = new OffscreenCanvasWorker();
+
+            const setActions = e => {
+              const fileIndex = fileList.findIndex(file => file.name === e.data.name);
+
+              if (e.data.i) {
+                fileList[fileIndex].status = `drawing (${parseInt(e.data.i / e.data.max * 100, 10)}%)`;
+                updateFileList();
+                return;
+              }
+
+              fileList[fileIndex].actions = e.data.actions;
+              fileList[fileIndex].status = 'ready';
+
+              updateFileList();
+
+              drawer.removeEventListener('message', setActions);
+              drawer.terminate();
+            };
+
+            drawer.addEventListener('message', setActions, false);
+            drawer.postMessage({
+              name: file.name,
+              actions: file.actions,
+              canvasDimensions,
+              init: true,
+            });
+          }
+        });
+      }
     });
   };
 
@@ -187,11 +222,6 @@ function App() {
       default: console.warn('Unknown action', actions[index].action); break;
     }
 
-    if (generateFrames) {
-      imgStack[index] = canvas.current.toDataURL()
-        .split('data:image/png;base64,')[1];
-    }
-
     setCurentActionIndex(index + 1);
 
     if (index !== actions.length - 1) {
@@ -201,7 +231,7 @@ function App() {
     } else {
       setPaused(true);
     }
-  }, [generateFrames]);
+  }, []);
 
   /**
    * Clear the canvas and remove all uploaded files. 
@@ -209,7 +239,6 @@ function App() {
   const _clearAll = useCallback(() => {
     clearTimeout(drawingTimer);
     undoStack = [];
-    imgStack = [];
     fileList = [];
     updateFileList();
     setPaused(true);
@@ -237,7 +266,6 @@ function App() {
       const startingIndex = currentActionIndex === canvasActions.length ? 0 : currentActionIndex;
       if (!startingIndex) {
         undoStack = [];
-        imgStack = [];
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.current.width, canvas.current.height);
       }
@@ -284,7 +312,7 @@ function App() {
     throttle(() => _navigateTo(...args), NAVIGATION_DELAY);
   }, [_navigateTo]);
 
-  const _downloadImgStack = () => {
+  const _downloadImageFrames = () => {
     const packer = new ZipImagesWorker();
     setZipLoading(true);
 
@@ -299,7 +327,7 @@ function App() {
     };
     
     packer.addEventListener('message', downloadFile, false);
-    packer.postMessage(imgStack);
+    packer.postMessage(canvasActions);
   }
 
   return (
@@ -364,8 +392,8 @@ function App() {
           {generateFrames && <Button
             color='primary'
             variant='contained'
-            onClick={_downloadImgStack}
-            disabled={imgStack.length === 0 || imgStack.length !== canvasActions.length}
+            onClick={_downloadImageFrames}
+            disabled={zipLoading}
           >
             {zipLoading ? 'Generating zip...' : 'Download frames'}
           </Button>}
@@ -379,7 +407,7 @@ function App() {
               color='primary'
               aria-label='Clear'
               onClick={_clearAll}
-              disabled={fileList.length === 0 || loadingFilesCount > 0}
+              disabled={fileList.length === 0}
             >
               <ClearIcon />
             </IconButton>
@@ -389,7 +417,7 @@ function App() {
               color='primary'
               aria-label='Pause'
               onClick={_togglePause}
-              disabled={canvasActions.length === 0 || loadingFilesCount > 0}
+              disabled={canvasActions.length === 0}
             >
               {paused ? <PlayIcon /> : <PauseIcon />}
             </IconButton>

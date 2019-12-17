@@ -9,7 +9,7 @@ const FileList = ({ files }) => (
     {files.map((file) => (
       <div key={file.name} className='fileLine'>
         <span className='statusContainer'>
-          <Label text={file.status} brand={file.status} />
+          <Label text={file.status} brand={file.status.split(' ')[0]} />
         </span>
         {file.name}
       </div>
