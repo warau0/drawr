@@ -8,15 +8,16 @@ const _chunkArray = (array = [], chunkSize) =>
 
 /* eslint-disable no-restricted-globals */
 self.addEventListener('message', e => {
-  const { canvasDimensions, name, actions, init } = e.data;
-  const undoStack = [];
+  const { canvasDimensions, name, prevActions, actions, undoStack } = e.data;
 
   var offscreen = new OffscreenCanvas(canvasDimensions.width, canvasDimensions.height);
   const ctx = offscreen.getContext('2d');
 
-  if (init) {
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvasDimensions.width, canvasDimensions.height);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, canvasDimensions.width, canvasDimensions.height);
+
+  if (prevActions.length) {
+    drawUntil(ctx, prevActions, prevActions.length, undoStack);
   }
 
   // Chunk to force blob converting. Nukes memory if not chunked.
@@ -29,27 +30,27 @@ self.addEventListener('message', e => {
           drawAction(ctx, action);
           break;
         }
-  
+
         case 'undo': {
-          const actionsIndex = index + (CHUNK_SIZE * chunkIndex);
+          const actionsIndex = index + (CHUNK_SIZE * chunkIndex) + prevActions.length;
+          const totalActions = prevActions.concat(actions);
+
           ctx.fillStyle = 'white';
           ctx.fillRect(0, 0, canvasDimensions.width, canvasDimensions.height);
-          drawUntil(ctx, actions, actionsIndex, undoStack);
-          let lastDrawingIndex = null;
+          drawUntil(ctx, totalActions, actionsIndex, undoStack);
           for (let i = actionsIndex; i >= 0; i--) {
-            if (actions[i].action === 'draw' && undoStack.indexOf(i) === -1) {
-              lastDrawingIndex = i;
+            if (totalActions[i].action === 'draw' && undoStack.indexOf(i) === -1) {
+              undoStack.push(i);
               break;
             }
           }
-          undoStack.push(lastDrawingIndex);
           break;
         }
   
         case 'redo': {
           const redoActionIndex = undoStack.pop();
           if (redoActionIndex >= 0) {
-            const undoneAction = actions[redoActionIndex];
+            const undoneAction = prevActions.concat(actions)[redoActionIndex];
             if (undoneAction) {
               drawAction(ctx, undoneAction);
             } else {
@@ -78,7 +79,7 @@ self.addEventListener('message', e => {
 
     Promise.all(promises).then(() => {
       if (chunkIndex === chunks.length -1) {
-        self.postMessage({ name, actions })
+        self.postMessage({ name, actions, undoStack });
       } else {
         self.postMessage({ name, i: chunkIndex + 1, max: chunks.length });
         drawChunk(chunkIndex + 1)
@@ -89,7 +90,7 @@ self.addEventListener('message', e => {
 
   drawChunk(0)
     .then((a) => {
-      self.postMessage({ name, actions: a });
+      self.postMessage({ name, actions: a, undoStack });
     });
 }, false);
 /* eslint-enable no-restricted-globals */

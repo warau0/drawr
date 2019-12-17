@@ -50,7 +50,6 @@ function App() {
   // User input
   const [playbackSpeed, setPlaybackSpeed] = useState(100);
   const [filterUndos, setFilterUndos] = useState(false);
-  const [generateFrames, setGenerateFrames] = useState(false);
 
   const inputRef = useRef(null);
   const canvas = useRef(null);
@@ -86,7 +85,6 @@ function App() {
     
     const uploadFiles = Array.from(event.target.files);
     inputRef.current.value = '';
-    let canvasDimensions = { height: canvasHeight, width: canvasWidth };
 
     uploadFiles.forEach(file => {
       const existingIndex = fileList.findIndex(f => f.name === file.name);
@@ -107,7 +105,7 @@ function App() {
     fileList = sortFiles(fileList);
     updateFileList();
 
-    const promises = uploadFiles.map(file => new Promise(resolve => {
+    uploadFiles.forEach(file => {
       const unpacker = new UnpackGzWorker();
 
       const setFileData = e => {
@@ -130,54 +128,65 @@ function App() {
         if (e.data.dimensions) {
           setCanvasWidth(e.data.dimensions.width);
           setCanvasHeight(e.data.dimensions.height);
-          canvasDimensions = e.data.dimensions;
         }
 
         unpacker.removeEventListener('message', setFileData);
         unpacker.terminate();
-        resolve();
       };
 
       unpacker.addEventListener('message', setFileData, false);
-      unpacker.postMessage({ file, filterUndos, generateFrames });
-    }));
-
-    Promise.all(promises).then(() => {
-      if (generateFrames) {
-        fileList.forEach((file, i) => {
-          if (file.status === 'drawing') {
-            const drawer = new OffscreenCanvasWorker();
-
-            const setActions = e => {
-              const fileIndex = fileList.findIndex(file => file.name === e.data.name);
-
-              if (e.data.i) {
-                fileList[fileIndex].status = `drawing (${parseInt(e.data.i / e.data.max * 100, 10)}%)`;
-                updateFileList();
-                return;
-              }
-
-              fileList[fileIndex].actions = e.data.actions;
-              fileList[fileIndex].status = 'ready';
-
-              updateFileList();
-
-              drawer.removeEventListener('message', setActions);
-              drawer.terminate();
-            };
-
-            drawer.addEventListener('message', setActions, false);
-            drawer.postMessage({
-              name: file.name,
-              actions: file.actions,
-              canvasDimensions,
-              init: true,
-            });
-          }
-        });
-      }
+      unpacker.postMessage({ file, filterUndos });
     });
   };
+
+  const _generateFrames = (fileIndex = 0, undos = []) => {
+    if (!fileIndex) {
+      fileList = fileList.map(f => ({ ...f, status: (f.status === 'ready' ? 'waiting' : f.status) }));
+      updateFileList();
+    }
+
+    const file = fileList[fileIndex];
+    if (file.status === 'waiting') {
+      const drawer = new OffscreenCanvasWorker();
+
+      const setActions = e => {
+        const fileIndex = fileList.findIndex(file => file.name === e.data.name);
+
+        if (e.data.i) {
+          fileList[fileIndex].status = `drawing (${parseInt(e.data.i / e.data.max * 100, 10)}%)`;
+          updateFileList();
+          return;
+        }
+
+        fileList[fileIndex].actions = e.data.actions;
+        fileList[fileIndex].status = 'ready';
+
+        undos = e.data.undoStack;
+
+        updateFileList();
+
+        drawer.removeEventListener('message', setActions);
+        drawer.terminate();
+
+        if (fileIndex !== fileList.length - 1) {
+          _generateFrames(fileIndex + 1, undos);
+        }
+      };
+
+      drawer.addEventListener('message', setActions, false);
+      drawer.postMessage({
+        name: file.name,
+        actions: file.actions,
+        canvasDimensions: { height: canvasHeight, width: canvasWidth },
+        prevActions: [].concat(...fileList.slice(0, fileIndex).map(file => file.actions)),
+        undoStack: undos,
+      });
+    } else {
+      if (fileIndex !== fileList.length - 1) {
+        _generateFrames(fileIndex + 1, undos);
+      }
+    }
+  }
 
   /**
    * Act upon an action by updating the canvas.
@@ -193,14 +202,12 @@ function App() {
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.current.width, canvas.current.height);
         drawUntil(ctx, actions, index, undoStack); // Scales badly, lags when going fast.
-        let lastDrawingIndex = null;
         for (let i = index; i >= 0; i--) {
           if (actions[i].action === 'draw' && undoStack.indexOf(i) === -1) {
-            lastDrawingIndex = i;
+            undoStack.push(i);
             break;
           }
         }
-        undoStack.push(lastDrawingIndex);
         break;
       }
 
@@ -357,18 +364,6 @@ function App() {
             </label>
           </div>
 
-          <div>
-            <label>
-              <input
-                type='checkbox'
-                onChange={() => setGenerateFrames(!generateFrames)}
-                checked={generateFrames}
-                disabled={!paused}
-              />
-              Generate image frames
-            </label>
-          </div>
-
           <FileList files={fileList} />
         </div>
 
@@ -389,14 +384,21 @@ function App() {
 
           <div>Playback time: {(canvasActions.length * playbackSpeed / 1000).toFixed(2)}s</div>
           <div>Frames: {canvasActions.length}</div>
-          {generateFrames && <Button
+          <Button
+            color='primary'
+            variant='contained'
+            onClick={() => _generateFrames()}
+          >
+            Generate image frames
+          </Button>
+          <Button
             color='primary'
             variant='contained'
             onClick={_downloadImageFrames}
             disabled={zipLoading}
           >
             {zipLoading ? 'Generating zip...' : 'Download frames'}
-          </Button>}
+          </Button>
         </div>
       </div>
 

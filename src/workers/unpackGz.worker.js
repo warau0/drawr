@@ -3,7 +3,7 @@ import amfToCanvasActions from '../utils/amfToCanvasActions';
 
 /* eslint-disable no-restricted-globals */
 self.addEventListener('message', e => {
-  const { file, filterUndos, generateFrames } = e.data;
+  const { file, filterUndos } = e.data;
 
   unpackGz(file)
   .then(result => {
@@ -20,7 +20,7 @@ self.addEventListener('message', e => {
       actions,
       repostUrl,
       repostFile,
-      status: actions.length ? (generateFrames ? 'drawing' : 'ready') : 'empty',
+      status: actions.length ? 'ready' : 'empty',
     });
   })
   .catch(e => {
