@@ -358,17 +358,19 @@ function App() {
     setZipLoading(true);
 
     const downloadFile = e => {
-      if (e.data) {
-        saveAs(e.data, `${fileList[fileList.length - 1].name.split('.')[0]}.zip`);
+      if (e.data.content) {
+        saveAs(e.data.content, e.data.name);
       }
-      
-      setZipLoading(false);
-      packer.removeEventListener('message', downloadFile);
-      packer.terminate();
+
+      if (e.data.done) {
+        setZipLoading(false);
+        packer.removeEventListener('message', downloadFile);
+        packer.terminate();
+      }
     };
     
     packer.addEventListener('message', downloadFile, false);
-    packer.postMessage(canvasActions);
+    packer.postMessage({ frames: canvasActions, name: fileList[fileList.length - 1].name.split('.')[0] });
   }
 
   return (
@@ -410,7 +412,7 @@ function App() {
             color='primary'
             variant='contained'
             onClick={() => _generateFrames()}
-            disabled={fileList.length === 0 || filesDrawing || allFramesDrawn}
+            disabled={fileList.length === 0 || filesDrawing || allFramesDrawn || filesUnpacking}
           >
             Generate frames
             <span className='ButtonNote'>(for download)</span>

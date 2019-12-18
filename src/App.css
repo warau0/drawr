@@ -54,7 +54,7 @@ canvas {
 
 .uploadContainer {
   padding: 0 .5rem;
-  min-width: 250px;
+  min-width: 300px;
 }
 
 .checkboxContainer {
@@ -83,6 +83,7 @@ pre {
   background-color: #d1ecf1;
   border: 1px solid #bee5eb;
   border-radius: .25rem;
+  margin-top: .5rem;
 }
 
 button .ButtonNote {

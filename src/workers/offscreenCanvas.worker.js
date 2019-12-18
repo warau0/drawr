@@ -1,10 +1,8 @@
 import drawAction from '../utils/drawAction';
 import drawUntil from '../utils/drawUntil';
+import chunkArray from '../utils/chunkArray';
 
 const CHUNK_SIZE = 200;
-
-const _chunkArray = (array = [], chunkSize) =>
-  array.length ? [array.slice(0, chunkSize), ..._chunkArray(array.slice(chunkSize), chunkSize)] : [];
 
 /* eslint-disable no-restricted-globals */
 self.addEventListener('message', e => {
@@ -21,7 +19,7 @@ self.addEventListener('message', e => {
   }
 
   // Chunk to force blob converting. Nukes memory if not chunked.
-  const chunks = _chunkArray(actions, CHUNK_SIZE);
+  const chunks = chunkArray(actions, CHUNK_SIZE);
 
   const drawChunk = (chunkIndex) => new Promise((resolveChunk) => {
     const promises = chunks[chunkIndex].map((action, index) => new Promise((resolveAction) => {
