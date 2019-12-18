@@ -1,7 +1,7 @@
 import drawAction from '../utils/drawAction';
 import drawUntil from '../utils/drawUntil';
 
-const CHUNK_SIZE = 100;
+const CHUNK_SIZE = 200;
 
 const _chunkArray = (array = [], chunkSize) =>
   array.length ? [array.slice(0, chunkSize), ..._chunkArray(array.slice(chunkSize), chunkSize)] : [];
@@ -24,7 +24,7 @@ self.addEventListener('message', e => {
   const chunks = _chunkArray(actions, CHUNK_SIZE);
 
   const drawChunk = (chunkIndex) => new Promise((resolveChunk) => {
-    const promises = chunks[chunkIndex].map((action, index) => new Promise((resolveAction) => {  
+    const promises = chunks[chunkIndex].map((action, index) => new Promise((resolveAction) => {
       switch (action.action) {
         case 'draw': {
           drawAction(ctx, action);

@@ -69,6 +69,40 @@ function App() {
     return combinedUndos;
   }, [canvasActions]);
 
+  const filesUnpacking = useMemo(() => {
+    for (let i = 0; i < fileList.length; i++) {
+      const status = fileList[i].status;
+      if (status === 'unpacking') {
+        return true;
+      }
+    }
+
+    return false;
+  }, [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filesDrawing = useMemo(() => {
+    for (let i = 0; i < fileList.length; i++) {
+      const status = fileList[i].status;
+      if (status === 'waiting' || status.indexOf('drawing') !== -1) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [updateFileList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const allFramesDrawn = useMemo(() => {
+    if (canvasActions.length === 0) return false;
+
+    for (let i = 0; i < canvasActions.length; i++) {
+      if (!canvasActions[i].frame) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [canvasActions]);
+
   // Mirror playbackSpeed to globalPlaybackSpeed.
   useEffect(() => {
     globalPlaybackSpeed = playbackSpeed;
@@ -81,6 +115,9 @@ function App() {
    */
   const _onFileUpload = files => {
     clearTimeout(drawingTimer);
+    undoStack = [];
+    setPaused(true);
+    setCurentActionIndex(0);
     
     const uploadFiles = Array.from(files);
 
@@ -354,15 +391,40 @@ function App() {
                 checked={filterUndos}
                 disabled={!paused}
               />
-              Filter out undos
+              Remove undos when unpacking
             </label>
           </div>
 
           <FileList files={fileList} />
         </div>
 
-        <div className='speedContainer'>
-          <div>
+        <div className='actionsContainer'>
+          <Button
+            variant='outlined'
+            onClick={_clearAll}
+            disabled={fileList.length === 0 || !paused}
+          >
+            Clear files
+          </Button>
+
+          <Button
+            color='primary'
+            variant='contained'
+            onClick={() => _generateFrames()}
+            disabled={fileList.length === 0 || filesDrawing || allFramesDrawn}
+          >
+            Generate video frames
+          </Button>
+          <Button
+            color='primary'
+            variant='contained'
+            onClick={_downloadImageFrames}
+            disabled={zipLoading || fileList.length === 0 || filesDrawing || !allFramesDrawn}
+          >
+            {zipLoading ? 'Generating zip...' : 'Download frames'}
+          </Button>
+
+          <div className='speedContainer'>
             <label>
               Playback speed (ms)
               <Slider
@@ -375,32 +437,6 @@ function App() {
               />
             </label>
           </div>
-
-          <Button
-            color='primary'
-            variant='contained'
-            onClick={_clearAll}
-            disabled={fileList.length === 0}
-          >
-            Clear files
-          </Button>
-
-          <Button
-            color='primary'
-            variant='contained'
-            onClick={() => _generateFrames()}
-            disabled={fileList.length === 0}
-          >
-            Generate image frames
-          </Button>
-          <Button
-            color='primary'
-            variant='contained'
-            onClick={_downloadImageFrames}
-            disabled={zipLoading || fileList.length === 0}
-          >
-            {zipLoading ? 'Generating zip...' : 'Download frames'}
-          </Button>
         </div>
       </div>
 
@@ -409,7 +445,7 @@ function App() {
           color='primary'
           aria-label='Pause'
           onClick={_togglePause}
-          disabled={canvasActions.length === 0}
+          disabled={canvasActions.length === 0 || filesUnpacking}
         >
           {paused ? <PlayIcon /> : <PauseIcon />}
         </IconButton>

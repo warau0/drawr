@@ -40,12 +40,16 @@ canvas {
   flex-shrink: 0;
 }
 
-.speedContainer {
+.actionsContainer {
   min-width: 200px;
 }
 
-.speedContainer button {
+.actionsContainer button {
   margin: .25rem 0;
+}
+
+.speedContainer {
+  margin-top: .5rem;
 }
 
 .uploadContainer {
