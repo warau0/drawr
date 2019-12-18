@@ -31,10 +31,9 @@ let fileList = []; // Updated async from web workers so can't be a state variabl
 /**
  * ::::TODO::::
  * 
- * Bug: Manual navigation don't properly apply undos & redos.
+ * Kill web workers when clearAll is fired.
  * Use frames for doAction if it's available.
  * Move drawing into a web worker to reduce main thread lag.
- * Kill web workers when clearAll is fired.
  * Find out if csize and layers are important.
  * Cheese it!
  */
@@ -331,7 +330,7 @@ function App() {
       if (canvasActions[i].action === 'undo') {
         // Find the last drawing action before this undo.
         for (let j = i; j >= 0; j--) {
-          if (canvasActions[j].action === 'draw' && undoStack.indexOf(i) === -1) {
+          if (canvasActions[j].action === 'draw' && undoStack.indexOf(j) === -1) {
             undoStack.push(j);
             break;
           }

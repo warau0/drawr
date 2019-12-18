@@ -65,7 +65,7 @@ export default ({
           className='dropIcon'
           src={imagesIcon}
         />
-        <span>Select files</span>
+        <span>Select .gz files</span>
       </div>
     </div>
   );
