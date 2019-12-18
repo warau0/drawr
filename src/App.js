@@ -47,7 +47,7 @@ function App() {
   const [zipLoading, setZipLoading] = useState(false);
 
   // User input
-  const [playbackSpeed, setPlaybackSpeed] = useState(100);
+  const [playbackSpeed, setPlaybackSpeed] = useState(-100);
   const [filterUndos, setFilterUndos] = useState(false);
 
   const canvas = useRef(null);
@@ -268,7 +268,7 @@ function App() {
     if (index !== actions.length - 1) {
       drawingTimer = setTimeout(() => {
         _doAction(ctx, actions, index + 1);
-      }, globalPlaybackSpeed);
+      }, globalPlaybackSpeed * -1);
     } else {
       setPaused(true);
     }
@@ -412,7 +412,8 @@ function App() {
             onClick={() => _generateFrames()}
             disabled={fileList.length === 0 || filesDrawing || allFramesDrawn}
           >
-            Generate video frames
+            Generate frames
+            <span className='ButtonNote'>(for download)</span>
           </Button>
           <Button
             color='primary'
@@ -425,19 +426,26 @@ function App() {
 
           <div className='speedContainer'>
             <label>
-              Playback speed (ms)
+              Playback speed
               <Slider
                 onChange={(e, value) => setPlaybackSpeed(value)}
                 value={playbackSpeed}
-                valueLabelDisplay='auto'
                 step={10}
-                min={10}
-                max={500}
+                min={-500}
+                max={-10}
               />
             </label>
           </div>
         </div>
       </div>
+
+      {fileList.length > 0 && !filesDrawing && allFramesDrawn && (
+        <div className='tip'>
+          To make a .webm video from the frames you can use <a rel='noopener noreferrer' href='https://www.ffmpeg.org/' target='_blank'>FFmpeg</a>.
+          <br />Inside the folder with the images, use this command:
+          <pre>ffmpeg -i frame-%d.png -auto-alt-ref 0 -c:v libvpx -b:v 2M -crf 17 output.webm</pre>
+        </div>
+      )}
 
       <div className='progressContainer'>
         <IconButton
