@@ -1,0 +1,36 @@
+.dropzone {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  font-size: 16px;
+  opacity: .7;
+  transition: all .4s ease-out;
+}
+
+.dropzone.highlight {
+  opacity: 1;
+}
+
+.dropzone .fileInput {
+  display: none;
+}
+
+.dropzone .dropIndicator {
+  border: 3px dashed rgba(0, 0, 0, .5);
+  padding: 1rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  transition: all .4s ease-out;
+}
+
+.dropzone.highlight .dropIndicator {
+  border: 3px dashed rgba(0, 0, 0, .8);
+}
+
+.dropzone .dropIndicator .dropIcon {
+  height: 16px;
+  width: 16px;
+  margin-right: .5rem;
+}

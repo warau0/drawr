@@ -61,7 +61,7 @@ self.addEventListener('message', e => {
           }
           break;
         }
-  
+
         default: console.warn('Unknown action', action.action); break;
       }
   

@@ -1,13 +1,17 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  margin: 0 auto;
+}
+
 .header {
   display: flex;
   justify-content: center;
 }
 
-
 .canvasContainer {
-  display: flex;
-  justify-content: center;
-  padding: 1rem;
+  margin: 1rem 0;
 }
 
 canvas {
@@ -29,20 +33,35 @@ canvas {
   margin: 0 auto;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .progressContainer button {
   flex-shrink: 0;
 }
 
-.progressContainer .playButton {
-  margin-right: 1rem;
-}
-
 .speedContainer {
   min-width: 200px;
 }
 
+.speedContainer button {
+  margin: .25rem 0;
+}
+
 .uploadContainer {
   padding: 0 .5rem;
+  min-width: 250px;
+}
+
+.checkboxContainer {
+  padding: .5rem 0;
+}
+
+.progressContainer .indicatorLeft {
+  padding-left: .25rem;
+  padding-right: 1rem;
+}
+
+.progressContainer .indicatorRight {
+  padding-left: 1rem;
 }

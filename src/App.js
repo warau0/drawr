@@ -4,10 +4,10 @@ import Slider from '@material-ui/core/Slider';
 import IconButton from '@material-ui/core/IconButton';
 import Button from '@material-ui/core/Button';
 import PlayIcon from '@material-ui/icons/PlayCircleOutline';
-import ClearIcon from '@material-ui/icons/HighlightOff';
 import PauseIcon from '@material-ui/icons/PauseCircleOutline';
 
 import FileList from './atoms/fileList/fileList';
+import Dropzone from './atoms/dropzone/dropzone';
 
 import useForceUpdate from './utils/useForceUpdate';
 import drawAction from './utils/drawAction';
@@ -51,7 +51,6 @@ function App() {
   const [playbackSpeed, setPlaybackSpeed] = useState(100);
   const [filterUndos, setFilterUndos] = useState(false);
 
-  const inputRef = useRef(null);
   const canvas = useRef(null);
 
   const updateFileList = useForceUpdate(); // Proxy state updater for fileList.
@@ -80,11 +79,10 @@ function App() {
   /**
    * Unpack and convert .gz files into canvas actions.
    */
-  const _onFileUpload = event => {
+  const _onFileUpload = files => {
     clearTimeout(drawingTimer);
     
-    const uploadFiles = Array.from(event.target.files);
-    inputRef.current.value = '';
+    const uploadFiles = Array.from(files);
 
     uploadFiles.forEach(file => {
       const existingIndex = fileList.findIndex(f => f.name === file.name);
@@ -338,21 +336,17 @@ function App() {
   }
 
   return (
-    <>
+    <div className='app' style={{ width: canvasWidth }}>
       <div className='header'>
         <div className='uploadContainer'>
           <div>
-            <input
-              multiple
-              ref={inputRef}
-              type='file'
-              name='file'
-              onChange={_onFileUpload}
+            <Dropzone
               disabled={!paused}
+              onFilesAdded={_onFileUpload}
             />
           </div>
 
-          <div>
+          <div className='checkboxContainer'>
             <label>
               <input
                 type='checkbox'
@@ -370,7 +364,7 @@ function App() {
         <div className='speedContainer'>
           <div>
             <label>
-              Time (ms) per frame
+              Playback speed (ms)
               <Slider
                 onChange={(e, value) => setPlaybackSpeed(value)}
                 value={playbackSpeed}
@@ -382,12 +376,20 @@ function App() {
             </label>
           </div>
 
-          <div>Playback time: {(canvasActions.length * playbackSpeed / 1000).toFixed(2)}s</div>
-          <div>Frames: {canvasActions.length}</div>
+          <Button
+            color='primary'
+            variant='contained'
+            onClick={_clearAll}
+            disabled={fileList.length === 0}
+          >
+            Clear files
+          </Button>
+
           <Button
             color='primary'
             variant='contained'
             onClick={() => _generateFrames()}
+            disabled={fileList.length === 0}
           >
             Generate image frames
           </Button>
@@ -395,53 +397,44 @@ function App() {
             color='primary'
             variant='contained'
             onClick={_downloadImageFrames}
-            disabled={zipLoading}
+            disabled={zipLoading || fileList.length === 0}
           >
             {zipLoading ? 'Generating zip...' : 'Download frames'}
           </Button>
         </div>
       </div>
 
-      {!!(canvasHeight && canvasWidth) && (
-        <>
-          <div className='progressContainer' style={{ width: canvasWidth }}>
-            <IconButton
-              color='primary'
-              aria-label='Clear'
-              onClick={_clearAll}
-              disabled={fileList.length === 0}
-            >
-              <ClearIcon />
-            </IconButton>
+      <div className='progressContainer'>
+        <IconButton
+          color='primary'
+          aria-label='Pause'
+          onClick={_togglePause}
+          disabled={canvasActions.length === 0}
+        >
+          {paused ? <PlayIcon /> : <PauseIcon />}
+        </IconButton>
 
-            <IconButton
-              className='playButton'
-              color='primary'
-              aria-label='Pause'
-              onClick={_togglePause}
-              disabled={canvasActions.length === 0}
-            >
-              {paused ? <PlayIcon /> : <PauseIcon />}
-            </IconButton>
+        {canvasActions.length > 0 && (
+          <>
+            <span className='indicatorLeft'>{0}</span>
+            <Slider
+              onChange={_throttledNavigateTo}
+              value={currentActionIndex}
+              step={1}
+              min={0}
+              max={canvasActions.length - 1}
+              marks={undoActionIndexes}
+              valueLabelDisplay='auto'
+            />
+            <span className='indicatorRight'>{canvasActions.length - 1}</span>
+          </>
+        )}
+      </div>
 
-            {canvasActions.length > 0 && (
-              <Slider
-                onChange={_throttledNavigateTo}
-                value={currentActionIndex}
-                step={1}
-                min={0}
-                max={canvasActions.length - 1}
-                marks={undoActionIndexes}
-              />
-            )}
-          </div>
-
-          <div className='canvasContainer' style={{ height: canvasHeight }}>
-            <canvas ref={canvas} height={canvasHeight} width={canvasWidth} />
-          </div>
-        </>
-      )}
-    </>
+      <div className='canvasContainer' style={{ height: canvasHeight }}>
+        <canvas ref={canvas} height={canvasHeight} width={canvasWidth} />
+      </div>
+    </div>
   );
 }
 
