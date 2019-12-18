@@ -377,7 +377,7 @@ function App() {
         <div className='uploadContainer'>
           <div>
             <Dropzone
-              disabled={!paused}
+              disabled={!paused || filesDrawing || filesUnpacking}
               onFilesAdded={_onFileUpload}
             />
           </div>
@@ -388,7 +388,7 @@ function App() {
                 type='checkbox'
                 onChange={() => setFilterUndos(!filterUndos)}
                 checked={filterUndos}
-                disabled={!paused}
+                disabled={!paused || filesDrawing || filesUnpacking}
               />
               Remove undos when unpacking
             </label>
@@ -401,7 +401,7 @@ function App() {
           <Button
             variant='outlined'
             onClick={_clearAll}
-            disabled={fileList.length === 0 || !paused}
+            disabled={fileList.length === 0 || !paused || filesDrawing || filesUnpacking}
           >
             Clear files
           </Button>

@@ -45,12 +45,11 @@ export default ({
   return (
     <div
       role='presentation'
-      className={`dropzone ${highlight ? 'highlight' : ''}`}
+      className={`dropzone ${highlight ? 'highlight' : ''} ${disabled ? 'disabled' : ''}`}
       onDragOver={_onDragOver}
       onDragLeave={_onDragLeave}
       onDrop={_onDrop}
       onClick={_openFileDialog}
-      style={{ cursor: disabled ? 'default' : 'pointer' }}
     >
       <input
         ref={fileInputRef}

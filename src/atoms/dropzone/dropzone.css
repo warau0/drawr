@@ -5,10 +5,16 @@
   font-size: 16px;
   opacity: .7;
   transition: all .4s ease-out;
+  cursor: pointer;
 }
 
-.dropzone.highlight {
+.dropzone.highlight, .dropzone:hover {
   opacity: 1;
+}
+
+.dropzone.disabled {
+  opacity: .5;
+  cursor: default;
 }
 
 .dropzone .fileInput {
