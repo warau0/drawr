@@ -5,6 +5,9 @@ self.addEventListener('message', e => {
   const frames = e.data;
   const zip = new JSZip();
 
+  // Final image duplicated as first for video thumbnail.
+  zip.file('frame-0.png', frames[frames.length - 1].frame, { type: 'blob' });
+
   for (let i = 0; i < frames.length; i++) {
     if (frames[i].frame) {
       zip.file(`frame-${i + 1}.png`, frames[i].frame, { type: 'blob' });
