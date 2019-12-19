@@ -2,6 +2,9 @@ import unpackGz from '../utils/unpackGz';
 import amfToCanvasActions from '../utils/amfToCanvasActions';
 
 /* eslint-disable no-restricted-globals */
+/**
+ * Unpack .gz files and convert the AMF data inside to canvas actions.
+ */
 self.addEventListener('message', e => {
   const { file, filterUndos } = e.data;
 

@@ -31,11 +31,8 @@ let fileList = []; // Updated async from web workers so can't be a state variabl
 /**
  * ::::TODO::::
  * 
- * Kill web workers when clearAll is fired.
- * Use frames for doAction if it's available.
  * Move drawing into a web worker to reduce main thread lag.
- * Find out if csize and layers are important.
- * Cheese it!
+ * Checkpoint the drawing every so often to avoid redrawing from the start on every undo.
  */
 
 function App() {
@@ -173,6 +170,9 @@ function App() {
     });
   };
 
+  /**
+   * Generate image data for every frame of the drawing. Used for exporting the replay.
+   */
   const _generateFrames = (fileIndex = 0, undos = []) => {
     if (!fileIndex) {
       fileList = fileList.map(f => ({ ...f, status: (f.status === 'ready' ? 'waiting' : f.status) }));
@@ -349,10 +349,17 @@ function App() {
     }
   }, [_doAction, canvasActions, paused]);
 
+  /**
+   * Avoid redrawing too often when dragging the slider.
+   */
   const _throttledNavigateTo = useCallback((...args) => {
     throttle(() => _navigateTo(...args), NAVIGATION_DELAY);
   }, [_navigateTo]);
 
+  /**
+   * Zip and download all the generated image frames.
+   * Chunks into multiple zip files if there are too many frames.
+   */
   const _downloadImageFrames = () => {
     const packer = new ZipImagesWorker();
     setZipLoading(true);

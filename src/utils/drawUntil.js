@@ -1,5 +1,8 @@
 import drawAction from './drawAction';
 
+/**
+ * Draw every action up till an index.
+ */
 export default (ctx, actions, index, undoStack, draw = drawAction) => {
   const drawingActions = actions.filter((action, fi) =>
     action.action === 'draw' &&

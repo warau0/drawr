@@ -1,7 +1,10 @@
 import decodeRepostUrl from './decodeRepostUrl';
 import intToRgbaColor from './intToRgbaColor';
 
-// Extract useful actions from AMF action array.
+/**
+ * Extract useful actions from AMF action array.
+ * Base structure for the actions the rest of the application uses.
+ */
 export default (amfActions, filterUndos = false) => {
   let dimensions = null;
   let repostUrl = null;
@@ -23,6 +26,7 @@ export default (amfActions, filterUndos = false) => {
           brushType: 'round', // action.penType: SQUARE / CIRCLE
           color: intToRgbaColor(action.color, action.alpha),
           path: [{ x: action.x, y: action.y }],
+          // Ignoring action.layer.
         }
         break;
       }
@@ -51,6 +55,7 @@ export default (amfActions, filterUndos = false) => {
         break;
       }
       case 'csize': {
+        // Not sure what this is. If it's to change cursor size it doesn't matter, size is also part of the mouse actions.
         break;
       }
       case 'repost': {

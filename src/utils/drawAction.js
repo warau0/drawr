@@ -1,4 +1,6 @@
-// Draws a line based on a single action.
+/**
+ * Draws a line based on a single action.
+ */
 export default (ctx, action) => {
     // Start line
     ctx.beginPath();

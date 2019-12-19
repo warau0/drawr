@@ -5,6 +5,10 @@ import chunkArray from '../utils/chunkArray';
 const CHUNK_SIZE = 200;
 
 /* eslint-disable no-restricted-globals */
+/**
+ * Generate image frames for every stroke in the replay.
+ * Used for exporting the replay.
+ */
 self.addEventListener('message', e => {
   const { canvasDimensions, name, prevActions, actions, undoStack } = e.data;
 

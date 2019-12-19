@@ -1,7 +1,9 @@
 import Amf from 'amf-js';
 import Pako from 'pako';
 
-// Unpack and serialize a .gz AMF file.
+/**
+ * Unpack and serialize a deflated AMF file.
+ */
 export default file => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -4,6 +4,9 @@ import chunkArray from '../utils/chunkArray';
 const CHUNK_SIZE = 3000;
 
 /* eslint-disable no-restricted-globals */
+/**
+ * Generate zip file(s) for an array of image frames.
+ */
 self.addEventListener('message', e => {
   const { frames, name } = e.data;
   

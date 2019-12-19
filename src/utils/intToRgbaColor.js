@@ -1,4 +1,6 @@
-// Convert a hex color in base 10 to an rgba color.
+/**
+ * Convert a hex color in base 10 to an rgba color.
+ */
 export default (color, alpha) => {
   const hex = !color || color === 0 ? `000000` : `${color.toString(16)}`;
 

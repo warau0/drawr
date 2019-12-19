@@ -1,3 +1,6 @@
+/**
+ * Sort strings alphabetically. Respects _1 _2 affixes.
+ */
 export default files => {
   let sorted = files.slice();
 

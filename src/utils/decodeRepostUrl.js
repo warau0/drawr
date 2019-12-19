@@ -1,4 +1,6 @@
-// Decode an obfuscated repost url.
+/**
+ * Decode an obfuscated repost url.
+ */
 export default string => {
   if (string.indexOf('http://') !== -1) {
     return null; // The required drawr API is broken.
