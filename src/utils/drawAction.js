@@ -1,19 +1,15 @@
 /**
  * Draws a line based on a single action.
  */
-export default (ctx, action) => {
-    // Start line
-    ctx.beginPath();
-    ctx.lineCap = action.brushType;
-    ctx.lineWidth = action.brushSize;
-    ctx.strokeStyle = action.color;
+export default (svg, action) => {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 
-    // Plot every movement of the line
-    for (let i = 1; i < action.path.length; i++) {
-      ctx.moveTo(action.path[i - 1].x, action.path[i - 1].y);
-      ctx.lineTo(action.path[i].x, action.path[i].y);
-    }
+  path.setAttributeNS(null, 'stroke', action.color);
+  path.setAttributeNS(null, 'stroke-width', action.brushSize);
+  path.setAttributeNS(null, 'stroke-linecap', action.brushType);
+  path.setAttributeNS(null, 'stroke-linejoin', action.brushType);
+  path.setAttributeNS(null, 'd', action.path);
+  path.setAttributeNS(null, 'fill', 'none');
 
-    // Draw the line
-    ctx.stroke();
+  svg.appendChild(path);
 }

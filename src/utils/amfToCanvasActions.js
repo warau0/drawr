@@ -25,17 +25,17 @@ export default (amfActions, filterUndos = false) => {
           // Canvas lineCap's butt and square look terrible, round is the most accurate by far.
           brushType: 'round', // action.penType: SQUARE / CIRCLE
           color: intToRgbaColor(action.color, action.alpha),
-          path: [{ x: action.x, y: action.y }],
+          path: `M ${action.x},${action.y} `,
           // Ignoring action.layer.
         }
         break;
       }
       case 'mmove': {
-        currentAction.path.push({ x: action.x, y: action.y});
+        currentAction.path += `${action.x},${action.y} `;
         break;
       }
       case 'mup': {
-        actions.push(currentAction);
+        actions.push({ ...currentAction, path: currentAction.path.slice(0, -1) });
         break;
       }
       case 'undo': {

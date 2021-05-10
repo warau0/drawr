@@ -14,7 +14,7 @@
   margin: 1rem 0;
 }
 
-canvas {
+.canvasContainer svg {
   border: 1px solid grey;
 }
 

@@ -3,7 +3,7 @@ import drawAction from './drawAction';
 /**
  * Draw every action up till an index.
  */
-export default (ctx, actions, index, undoStack, draw = drawAction) => {
+export default (svg, actions, index, undoStack, draw = drawAction) => {
   const drawingActions = actions.filter((action, fi) =>
     action.action === 'draw' &&
     undoStack.indexOf(fi) === -1 &&
@@ -11,7 +11,7 @@ export default (ctx, actions, index, undoStack, draw = drawAction) => {
   );
 
   for (let k = 0; k < drawingActions.length - 1; k++) {
-    draw(ctx, drawingActions[k]);
+    draw(svg, drawingActions[k]);
   }
 
   return null;
